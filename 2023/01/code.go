@@ -33,14 +33,9 @@ func run(part2 bool, input string) any {
 		calibrationStr := fmt.Sprintf("%s%s", res[0], res[len(res)-1])
 		calibrationNum, err := strconv.Atoi(calibrationStr)
 		if err == nil {
-			fmt.Println(calibrationNum)
+			// fmt.Println(calibrationNum)
 			out_sum += calibrationNum
 		}
 	}
 	return out_sum
-	// for i := 0; i < count; i++ {
-	// 	return input
-	// 	re := regexp.MustCompile("[0-9]+")
-	// 	fmt.Println(re.FindAllString("abc123def987asdf", -1))
-	// }
 }
