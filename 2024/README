@@ -1,3 +1,11 @@
 # 2024
 
 in 2024, I want to get better with go and try to parallelize each question as much as possible, even if it's redundant to do so (especially for the early ones).
+
+## Question 1
+```
+run(part1, input-example) returned in 521µs => 11
+run(part1, input-user) returned in 4ms => 1320851
+run(part2, input-example) returned in 0s => 31
+run(part2, input-user) returned in 1ms => 26859182
+```
