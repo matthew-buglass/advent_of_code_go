@@ -17,3 +17,8 @@ run(part1, input-user) returned in 4ms => 282
 run(part2, input-example) returned in 538µs => 4
 run(part2, input-user) returned in 3ms => 349
 ```
+
+## Question 3
+```
+
+```
