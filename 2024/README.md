@@ -2,6 +2,8 @@
 
 in 2024, I want to get better with go and try to parallelize each question as much as possible, even if it's redundant to do so (especially for the early ones).
 
+WARNING: If you are still working through the problems, the READMEs in each sub-folder contain the instructions for both parts 1 and 2 for days that were solved.
+
 ## Question 1
 ```
 run(part1, input-example) returned in 521µs => 11
