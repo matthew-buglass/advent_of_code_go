@@ -33,3 +33,11 @@ run(part1, input-user) returned in 265ms => 2591
 run(part2, input-example) returned in 94µs => 9
 run(part2, input-user) returned in 28ms => 1880
 ```
+
+## Question 5
+```
+run(part1, input-example) returned in 314µs => 143
+run(part1, input-user) returned in 5ms => 4766
+run(part2, input-example) returned in 175µs => 123
+run(part2, input-user) returned in 1ms => 6257
+```
