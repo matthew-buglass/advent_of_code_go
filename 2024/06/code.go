@@ -141,7 +141,7 @@ func run(part2 bool, input string) any {
 
 	// Build the location to destination lookup map
 	subMapChannel := make(chan map[string]PathLeg)
-	for _, obs := range obstructions[:1] {
+	for _, obs := range obstructions {
 		go findLocationsAndDirectionsToObstruction(
 			obs,
 			obsKeys,
@@ -151,7 +151,7 @@ func run(part2 bool, input string) any {
 	}
 
 	srcToDstMap := make(map[string]PathLeg)
-	for i := 0; i < len(obstructions[:1]); i++ {
+	for i := 0; i < len(obstructions); i++ {
 		obsMap := <-subMapChannel
 		for k, v := range obsMap {
 			srcToDstMap[k] = v
@@ -160,42 +160,34 @@ func run(part2 bool, input string) any {
 
 	// Find the path
 	currPosition := append(make([]int, 0), startPosition...)
-	locations := make([][]int, 0)
-	path := append(make([][]int, 0), currPosition)
+	locationStrings := make([]string, 0)
 	for inBoundsFunc(currPosition) {
 		// Get next position and add to path
 		pathLeg := srcToDstMap[getKey(currPosition, direction)]
-		fmt.Println(pathLeg)
 		for _, location := range pathLeg.travel {
-			if !slices.Contains(locations, location) {
-
+			locationString := fmt.Sprintf("%d,%d", location[0], location[1])
+			if !slices.Contains(locationStrings, locationString) {
+				locationStrings = append(locationStrings, locationString)
 			}
-			locations = append(locations, location)
 		}
 		newPosition := pathLeg.dst
 
 		if newPosition != nil {
-			path = append(path, newPosition)
-			fmt.Println(currPosition, newPosition, path)
-
 			// Set new variables
 			currPosition = newPosition
 			direction = turnMap[fmt.Sprintf("%d,%d", direction[0], direction[1])]
 		} else { // Now would be out of bounds
-			fmt.Println(direction)
 			newPosition := append(make([]int, 0), currPosition...)
 			for inBoundsFunc(newPosition) { // find out puzzle exit
+				locationString := fmt.Sprintf("%d,%d", newPosition[0], newPosition[1])
+				if !slices.Contains(locationStrings, locationString) {
+					locationStrings = append(locationStrings, locationString)
+				}
 				newPosition[0] += direction[0]
 				newPosition[1] += direction[1]
 			}
-			path = append(path, newPosition)
-			fmt.Println(direction, path)
 			break
 		}
 	}
-
-	// Find the the locations traveled between parts of the path
-	// locationsChannel := make(chan [][]int)
-	// uniqueLocations := make()
-	return 42
+	return len(locationStrings)
 }
