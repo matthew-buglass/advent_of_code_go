@@ -102,6 +102,36 @@ func findLocationsAndDirectionsToObstruction(
 	channel <- srcToDstMap
 }
 
+func getSrcToDstMap(obstructions [][]int, directions [][]int, inBoundsFunc func([]int) bool) map[string]PathLeg {
+	// Get the lookup keys for the obstructions
+	obsDir := []int{0, 0}
+	obsKeys := make([]string, len(obstructions))
+	for _, obs := range obstructions {
+		obsKeys = append(obsKeys, getKey(obs, obsDir))
+	}
+
+	// Build the location to destination lookup map
+	subMapChannel := make(chan map[string]PathLeg)
+	for _, obs := range obstructions {
+		go findLocationsAndDirectionsToObstruction(
+			obs,
+			obsKeys,
+			directions,
+			subMapChannel,
+			inBoundsFunc)
+	}
+
+	srcToDstMap := make(map[string]PathLeg)
+	for i := 0; i < len(obstructions); i++ {
+		obsMap := <-subMapChannel
+		for k, v := range obsMap {
+			srcToDstMap[k] = v
+		}
+	}
+
+	return srcToDstMap
+}
+
 func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) bool, srcToDstMap map[string]PathLeg, turnMap map[string][]int) [][]int {
 	currPosition := append(make([]int, 0), startPosition...)
 	locations := make([][]int, 0)
@@ -139,6 +169,8 @@ func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) 
 	return locations
 }
 
+// func isLoop(startPosition []int, direction []int, inBoundsFunc func([]int) bool, turnMap map[string][]int, obstructions [][]int)
+
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
 // 2. with: true (part2), and example input
@@ -165,32 +197,7 @@ func run(part2 bool, input string) any {
 	inBoundsFunc := func(pos []int) bool {
 		return 0 <= pos[0] && pos[0] <= spaceBounds[0] && 0 <= pos[1] && pos[1] <= spaceBounds[1]
 	}
-
-	// Get the lookup keys for the obstructions
-	obsDir := []int{0, 0}
-	obsKeys := make([]string, len(obstructions))
-	for _, obs := range obstructions {
-		obsKeys = append(obsKeys, getKey(obs, obsDir))
-	}
-
-	// Build the location to destination lookup map
-	subMapChannel := make(chan map[string]PathLeg)
-	for _, obs := range obstructions {
-		go findLocationsAndDirectionsToObstruction(
-			obs,
-			obsKeys,
-			directions,
-			subMapChannel,
-			inBoundsFunc)
-	}
-
-	srcToDstMap := make(map[string]PathLeg)
-	for i := 0; i < len(obstructions); i++ {
-		obsMap := <-subMapChannel
-		for k, v := range obsMap {
-			srcToDstMap[k] = v
-		}
-	}
+	srcToDstMap := getSrcToDstMap(obstructions, directions, inBoundsFunc)
 
 	// Find the path
 	locationsTraversed := findThePath(startPosition, direction, inBoundsFunc, srcToDstMap, turnMap)
