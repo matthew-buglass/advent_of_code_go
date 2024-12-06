@@ -24,13 +24,13 @@ func getLeadingIndices(matchPairs [][]int) []int {
 	return firstIndices
 }
 
-func intAbsDiff(a int, b int) int {
-	if a < b {
-		return b - a
-	} else {
-		return a - b
-	}
-}
+// func intAbsDiff(a int, b int) int {
+// 	if a < b {
+// 		return b - a
+// 	} else {
+// 		return a - b
+// 	}
+// }
 
 func parseInput(input string) (position []int, direction []int, spaceBounds []int, obstructions [][]int) {
 	rows := strings.Split(input, "\n")
@@ -52,9 +52,9 @@ func parseInput(input string) (position []int, direction []int, spaceBounds []in
 	return position, direction, spaceBounds, obstructions
 }
 
-func calculateDistance(start []int, end []int) int {
-	return intAbsDiff(start[0], end[0]) + intAbsDiff(start[1], end[1])
-}
+// func calculateDistance(start []int, end []int) int {
+// 	return intAbsDiff(start[0], end[0]) + intAbsDiff(start[1], end[1])
+// }
 
 func getKey(position []int, direction []int) string {
 	return fmt.Sprintf("%d,%d|%d,%d", position[0], position[1], direction[0], direction[1])
@@ -102,6 +102,43 @@ func findLocationsAndDirectionsToObstruction(
 	channel <- srcToDstMap
 }
 
+func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) bool, srcToDstMap map[string]PathLeg, turnMap map[string][]int) [][]int {
+	currPosition := append(make([]int, 0), startPosition...)
+	locations := make([][]int, 0)
+	locationStrings := make([]string, 0)
+	for inBoundsFunc(currPosition) {
+		// Get next position and add to path
+		pathLeg := srcToDstMap[getKey(currPosition, direction)]
+		for _, location := range pathLeg.travel {
+			locationString := fmt.Sprintf("%d,%d", location[0], location[1])
+			if !slices.Contains(locationStrings, locationString) {
+				locationStrings = append(locationStrings, locationString)
+				locations = append(locations, location)
+			}
+		}
+		newPosition := pathLeg.dst
+
+		if newPosition != nil {
+			// Set new variables
+			currPosition = newPosition
+			direction = turnMap[fmt.Sprintf("%d,%d", direction[0], direction[1])]
+		} else { // Now would be out of bounds
+			newPosition := append(make([]int, 0), currPosition...)
+			for inBoundsFunc(newPosition) { // find out puzzle exit
+				locationString := fmt.Sprintf("%d,%d", newPosition[0], newPosition[1])
+				if !slices.Contains(locationStrings, locationString) {
+					locationStrings = append(locationStrings, locationString)
+					locations = append(locations, newPosition)
+				}
+				newPosition[0] += direction[0]
+				newPosition[1] += direction[1]
+			}
+			break
+		}
+	}
+	return locations
+}
+
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
 // 2. with: true (part2), and example input
@@ -110,10 +147,7 @@ func findLocationsAndDirectionsToObstruction(
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
 	startPosition, direction, spaceBounds, obstructions := parseInput(input)
-	// when you're ready to do part 2, remove this "not implemented" block
-	if part2 {
-		return "not implemented"
-	}
+
 	// solve part 1 here
 	// Variable setup
 	directions := [][]int{
@@ -159,35 +193,12 @@ func run(part2 bool, input string) any {
 	}
 
 	// Find the path
-	currPosition := append(make([]int, 0), startPosition...)
-	locationStrings := make([]string, 0)
-	for inBoundsFunc(currPosition) {
-		// Get next position and add to path
-		pathLeg := srcToDstMap[getKey(currPosition, direction)]
-		for _, location := range pathLeg.travel {
-			locationString := fmt.Sprintf("%d,%d", location[0], location[1])
-			if !slices.Contains(locationStrings, locationString) {
-				locationStrings = append(locationStrings, locationString)
-			}
-		}
-		newPosition := pathLeg.dst
+	locationsTraversed := findThePath(startPosition, direction, inBoundsFunc, srcToDstMap, turnMap)
 
-		if newPosition != nil {
-			// Set new variables
-			currPosition = newPosition
-			direction = turnMap[fmt.Sprintf("%d,%d", direction[0], direction[1])]
-		} else { // Now would be out of bounds
-			newPosition := append(make([]int, 0), currPosition...)
-			for inBoundsFunc(newPosition) { // find out puzzle exit
-				locationString := fmt.Sprintf("%d,%d", newPosition[0], newPosition[1])
-				if !slices.Contains(locationStrings, locationString) {
-					locationStrings = append(locationStrings, locationString)
-				}
-				newPosition[0] += direction[0]
-				newPosition[1] += direction[1]
-			}
-			break
-		}
+	// when you're ready to do part 2, remove this "not implemented" block
+	if part2 {
+		return "not implemented"
+	} else {
+		return len(locationsTraversed)
 	}
-	return len(locationStrings)
 }
