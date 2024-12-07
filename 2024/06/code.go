@@ -177,38 +177,101 @@ func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) 
 	return locations
 }
 
-func isLoop(startPosition []int, direction []int, inBoundsFunc func([]int) bool, turnMap map[string][]int, oldObstructions [][]int, newObstruction []int, directions [][]int, channel chan int, taskId int) {
-	newObstructions := append(make([][]int, 0), oldObstructions...)
-	newObstructions = append(newObstructions, newObstruction)
-	srcToDstMap := getSrcToDstMap(newObstructions, directions, inBoundsFunc)
+func advance(currPos []int, stepVector []int) (nextPos []int) {
+	return []int{currPos[0] + stepVector[0], currPos[1] + stepVector[1]}
+}
 
-	currPosition := append(make([]int, 0), startPosition...)
-	stopsTakenStrings := append(make([]string, 0), locationToString(currPosition))
-	for inBoundsFunc(currPosition) {
-		// Get next position and add to path
-		pathLeg := srcToDstMap[getKey(currPosition, direction)]
-		newPosition := pathLeg.dst
+func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructionStrings []string, previousTurnLocations []string, channel chan int) {
+	// Setup
+	currPos := append(make([]int, 0), startPosition...)
+	currDirection := append(make([]int, 0), direction...)
 
-		if newPosition != nil {
-			// If we have already stopped at this location, we are about to enter a loop so ack and halt
-			if slices.Contains(stopsTakenStrings, locationToString(pathLeg.dst)) {
-				fmt.Printf("YES\t%d\n", taskId)
-				// fmt.Printf("Curr %v\tNext %v\tNew obs %v\tSteps %v\t Old obs: %v\n", currPosition, pathLeg.dst, newObstruction, stopsTakenStrings, oldObstructions)
-				channel <- 1
-				return
-			} else {
-				stopsTakenStrings = append(stopsTakenStrings, locationToString(pathLeg.dst))
-				// fmt.Println(stopsTakenStrings)
-				// Set new variables
-				currPosition = newPosition
-				direction = turnMap[fmt.Sprintf("%d,%d", direction[0], direction[1])]
-			}
-		} else { // Now would be out of bounds and did not enter a loop
-			fmt.Printf("NO\t%d\n", taskId)
-			channel <- 0
+	turnLocations := append(make([]string, 0), previousTurnLocations...)
+	for inBoundsFunc(currPos) {
+		if slices.Contains(turnLocations, locationToString(currPos)) {
+			// If we have already turned here, we are about to enter a loop
+			channel <- 1
 			return
 		}
+
+		nextPos := advance(currPos, currDirection)
+		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
+			currDirection = turnMap[locationToString(currDirection)]
+			nextPos = advance(currPos, currDirection)
+			turnLocations = append(turnLocations, locationToString(currPos))
+		}
+
+		currPos = nextPos
 	}
+
+	channel <- 0
+}
+
+func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) []string {
+	// Setup
+	currPos := append(make([]int, 0), startPosition...)
+	currDirection := append(make([]int, 0), direction...)
+	obstructionStrings := make([]string, 0)
+	for _, obs := range obstructions {
+		obstructionStrings = append(obstructionStrings, locationToString(obs))
+	}
+
+	// // At every step, if we find a location that we haven't been to before, we are going to launch a sub-problem to see
+	// // if introducing a new obstruction would cause a loop
+	// subProblemChannel := make(chan int)
+
+	uniqueLocations := make([]string, 0)
+	for inBoundsFunc(currPos) {
+		nextPos := advance(currPos, currDirection)
+
+		if !slices.Contains(uniqueLocations, locationToString(currPos)) {
+			// If we haven't been here before, put a blocker in front and kick off a sub-task
+
+			// Mark that we have been here
+			uniqueLocations = append(uniqueLocations, locationToString(currPos))
+		}
+
+		// if we would hit a wall, just rotate and don't advance
+		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
+			currDirection = turnMap[locationToString(currDirection)]
+			nextPos = currPos
+		}
+
+		currPos = nextPos
+	}
+
+	return uniqueLocations
+
+}
+
+func basicPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) []string {
+	// Setup
+	currPos := append(make([]int, 0), startPosition...)
+	currDirection := append(make([]int, 0), direction...)
+	obstructionStrings := make([]string, 0)
+	for _, obs := range obstructions {
+		obstructionStrings = append(obstructionStrings, locationToString(obs))
+	}
+
+	uniqueLocations := make([]string, 0)
+	for inBoundsFunc(currPos) {
+		if !slices.Contains(uniqueLocations, locationToString(currPos)) {
+			uniqueLocations = append(uniqueLocations, locationToString(currPos))
+		}
+
+		nextPos := advance(currPos, currDirection)
+
+		// if we would hit a wall, just rotate and don't advance
+		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
+			currDirection = turnMap[locationToString(currDirection)]
+			nextPos = currPos
+		}
+
+		currPos = nextPos
+	}
+
+	return uniqueLocations
+
 }
 
 // on code change, run will be executed 4 times:
@@ -237,33 +300,23 @@ func run(part2 bool, input string) any {
 	inBoundsFunc := func(pos []int) bool {
 		return 0 <= pos[0] && pos[0] <= spaceBounds[0] && 0 <= pos[1] && pos[1] <= spaceBounds[1]
 	}
-	srcToDstMap := getSrcToDstMap(obstructions, directions, inBoundsFunc)
-
-	// Find the path
-	locationsTraversed := findThePath(startPosition, append(make([]int, 0), direction...), inBoundsFunc, srcToDstMap, turnMap)
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		// fmt.Println(locationsTraversed)
-		// locationsTraversed := [][]int{{9, 7}}
-		isLoopChannel := make(chan int)
-		batchSize := 500
-		numberOfLoops := 0
-		for b := 0; b < len(locationsTraversed); b += batchSize {
-			tasksQueued := 0
-			for i, locationTrav := range locationsTraversed[b:intMin(b+batchSize, len(locationsTraversed))] {
-				if !reflect.DeepEqual(locationTrav, startPosition) {
-					go isLoop(startPosition, append(make([]int, 0), direction...), inBoundsFunc, turnMap, obstructions, locationTrav, directions, isLoopChannel, b+i+1)
-					tasksQueued += 1
-				}
-			}
-			// fmt.Println(tasksQueued)
-			for i := 0; i < tasksQueued; i++ {
-				numberOfLoops += <-isLoopChannel
-			}
-		}
-		return numberOfLoops
+		locationStrings := basicPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
+		return len(locationStrings)
 	} else {
+		// Before you ask, yes this is 100% overkill and slower than just doing a basic search synchronously
+		// I am trying to break down problems so they can be parallelized, even if I shouldn't.
+		// As a comparison:
+		// 	run(async, input-example) returned in 741µs => 41
+		// 	run(async, input-user) returned in 69ms => 4982
+		// 	run(sync, input-example) returned in 52µs => 41
+		// 	run(sync, input-user) returned in 31ms => 4982
+		srcToDstMap := getSrcToDstMap(obstructions, directions, inBoundsFunc)
+
+		// Find the path
+		locationsTraversed := findThePath(startPosition, append(make([]int, 0), direction...), inBoundsFunc, srcToDstMap, turnMap)
 		return len(locationsTraversed)
 	}
 }
