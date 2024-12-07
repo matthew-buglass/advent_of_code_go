@@ -43,3 +43,9 @@ run(part1, input-user) returned in 5ms => 4766
 run(part2, input-example) returned in 175µs => 123
 run(part2, input-user) returned in 1ms => 6257
 ```
+
+## Question 6
+```
+run(part1, input-example) returned in 668µs => 41
+run(part1, input-user) returned in 66ms => 4982
+```

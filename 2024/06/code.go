@@ -224,7 +224,7 @@ func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[stri
 	subProblemChannel := make(chan int)
 	numSubTasks := 0
 
-	uniqueTurnLocationStrings := make([]string, 0)
+	uniqueTurnLocationStrings := append(make([]string, 0), locationToString(startPosition))
 	uniqueLocations := make([]string, 0)
 	numLoops := 0
 	for inBoundsFunc(currPos) {
@@ -239,20 +239,21 @@ func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[stri
 				nextPos = advance(currPos, currDirection)
 			}
 		} else {
-			if !slices.Contains(uniqueLocations, getKey(currPos, currDirection)) {
+			if !slices.Contains(uniqueLocations, locationToString(currPos)) {
 				// If we haven't been here before from this, put a blocker in front and kick off a sub-task
 				newObsStrings := append(make([]string, 0), obstructionStrings...)
 				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, append(newObsStrings, locationToString(nextPos)), uniqueTurnLocationStrings, subProblemChannel)
 				numSubTasks += 1
 
 				// Mark that we have been here
-				uniqueLocations = append(uniqueLocations, getKey(currPos, currDirection))
+				uniqueLocations = append(uniqueLocations, locationToString(currPos))
 			}
 		}
 
 		currPos = nextPos
 	}
 
+	fmt.Println(numSubTasks)
 	for i := 0; i < numSubTasks; i++ {
 		numLoops += <-subProblemChannel
 	}
@@ -320,7 +321,7 @@ func run(part2 bool, input string) any {
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		// now I'm over counting. it's somewhere between 1818 and 1443. It's also not 1780.
+		// now I'm over counting. it's somewhere between 1443 and 1818. It's also not 1780 or 1620.
 		numLoops := basicLoopPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
 		return numLoops
 	} else {
