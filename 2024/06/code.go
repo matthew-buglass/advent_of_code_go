@@ -321,8 +321,25 @@ func run(part2 bool, input string) any {
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		// now I'm over counting. it's somewhere between 1443 and 1818. It's also not 1780 or 1620.
-		numLoops := basicLoopPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
+		resChannel := make(chan int)
+		numTasks := 0
+		obstructionStrings := make([]string, 0)
+		for _, obs := range obstructions {
+			obstructionStrings = append(obstructionStrings, locationToString(obs))
+		}
+		// now I'm over counting. it's somewhere between 1443 and 1818. It's also not 1780, 1620, 1624, 1486.
+		for i := 0; i < spaceBounds[0]; i++ {
+			for j := 0; j < spaceBounds[1]; j++ {
+				go isLoop(startPosition, direction, turnMap, inBoundsFunc, append(obstructionStrings, locationToString([]int{i, j})), []string{}, resChannel)
+				numTasks++
+			}
+		}
+
+		numLoops := 0
+		for i := 0; i < numTasks; i++ {
+			numLoops += <-resChannel
+		}
+		// numLoops := basicLoopPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
 		return numLoops
 	} else {
 		// Before you ask, yes this is 100% overkill and slower than just doing a basic search synchronously
