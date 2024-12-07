@@ -191,7 +191,7 @@ func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBo
 		nextPos := advance(currPos, currDirection)
 		if slices.Contains(uniqueTurnLocationStrings, getKey(currPos, currDirection)) {
 			// If we have already turned here, we are about to enter a loop
-			fmt.Println("    loop", currPos, obstructionStrings, uniqueTurnLocationStrings)
+			// fmt.Println("    loop", currPos, obstructionStrings, uniqueTurnLocationStrings)
 			channel <- 1
 			return
 		} else if slices.Contains(obstructionStrings, locationToString(nextPos)) {
@@ -206,7 +206,7 @@ func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBo
 		}
 		currPos = nextPos
 	}
-	fmt.Println("not loop", currPos, obstructionStrings, uniqueTurnLocationStrings)
+	// fmt.Println("not loop", currPos, obstructionStrings, uniqueTurnLocationStrings)
 	channel <- 0
 }
 
@@ -239,13 +239,14 @@ func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[stri
 				nextPos = advance(currPos, currDirection)
 			}
 		} else {
-			if !slices.Contains(uniqueLocations, locationToString(currPos)) {
-				// If we haven't been here before, put a blocker in front and kick off a sub-task
-				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, append(obstructionStrings, locationToString(nextPos)), uniqueTurnLocationStrings, subProblemChannel)
+			if !slices.Contains(uniqueLocations, getKey(currPos, currDirection)) {
+				// If we haven't been here before from this, put a blocker in front and kick off a sub-task
+				newObsStrings := append(make([]string, 0), obstructionStrings...)
+				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, append(newObsStrings, locationToString(nextPos)), uniqueTurnLocationStrings, subProblemChannel)
 				numSubTasks += 1
 
 				// Mark that we have been here
-				uniqueLocations = append(uniqueLocations, locationToString(currPos))
+				uniqueLocations = append(uniqueLocations, getKey(currPos, currDirection))
 			}
 		}
 
@@ -319,6 +320,7 @@ func run(part2 bool, input string) any {
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
+		// now I'm over counting. it's somewhere between 1818 and 1443. It's also not 1780.
 		numLoops := basicLoopPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
 		return numLoops
 	} else {
