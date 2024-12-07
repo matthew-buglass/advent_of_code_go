@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -24,13 +25,13 @@ func getLeadingIndices(matchPairs [][]int) []int {
 	return firstIndices
 }
 
-// func intAbsDiff(a int, b int) int {
-// 	if a < b {
-// 		return b - a
-// 	} else {
-// 		return a - b
-// 	}
-// }
+func intMin(a int, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
 
 func parseInput(input string) (position []int, direction []int, spaceBounds []int, obstructions [][]int) {
 	rows := strings.Split(input, "\n")
@@ -88,17 +89,20 @@ func findLocationsAndDirectionsToObstruction(
 		for !slices.Contains(obstructionsKeys, getKey(currentLocation, obsDir)) && inBoundsFunc(currentLocation) {
 			// fmt.Println(arrivalVector, departureVector, dstLocation, currentLocation)
 			locationsTraversed = append([][]int{append(make([]int, 0), currentLocation...)}, locationsTraversed...)
-			pathLeg := PathLeg{
-				src:    append(make([]int, 0), currentLocation...),
-				dst:    append(make([]int, 0), dstLocation...),
-				travel: append(make([][]int, 0), locationsTraversed...),
+			if !reflect.DeepEqual(currentLocation, dstLocation) {
+				pathLeg := PathLeg{
+					src:    append(make([]int, 0), currentLocation...),
+					dst:    append(make([]int, 0), dstLocation...),
+					travel: append(make([][]int, 0), locationsTraversed...),
+				}
+				srcToDstMap[getKey(currentLocation, arrivalVector)] = pathLeg
 			}
-			srcToDstMap[getKey(currentLocation, arrivalVector)] = pathLeg
+
 			currentLocation[0] += departureVector[0]
 			currentLocation[1] += departureVector[1]
 		}
 	}
-
+	// fmt.Println("Found map")
 	channel <- srcToDstMap
 }
 
@@ -132,6 +136,10 @@ func getSrcToDstMap(obstructions [][]int, directions [][]int, inBoundsFunc func(
 	return srcToDstMap
 }
 
+func locationToString(location []int) string {
+	return fmt.Sprintf("%d,%d", location[0], location[1])
+}
+
 func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) bool, srcToDstMap map[string]PathLeg, turnMap map[string][]int) [][]int {
 	currPosition := append(make([]int, 0), startPosition...)
 	locations := make([][]int, 0)
@@ -140,7 +148,7 @@ func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) 
 		// Get next position and add to path
 		pathLeg := srcToDstMap[getKey(currPosition, direction)]
 		for _, location := range pathLeg.travel {
-			locationString := fmt.Sprintf("%d,%d", location[0], location[1])
+			locationString := locationToString(location)
 			if !slices.Contains(locationStrings, locationString) {
 				locationStrings = append(locationStrings, locationString)
 				locations = append(locations, location)
@@ -155,10 +163,10 @@ func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) 
 		} else { // Now would be out of bounds
 			newPosition := append(make([]int, 0), currPosition...)
 			for inBoundsFunc(newPosition) { // find out puzzle exit
-				locationString := fmt.Sprintf("%d,%d", newPosition[0], newPosition[1])
+				locationString := locationToString(newPosition)
 				if !slices.Contains(locationStrings, locationString) {
 					locationStrings = append(locationStrings, locationString)
-					locations = append(locations, newPosition)
+					locations = append(locations, append(make([]int, 0), newPosition...))
 				}
 				newPosition[0] += direction[0]
 				newPosition[1] += direction[1]
@@ -169,7 +177,39 @@ func findThePath(startPosition []int, direction []int, inBoundsFunc func([]int) 
 	return locations
 }
 
-// func isLoop(startPosition []int, direction []int, inBoundsFunc func([]int) bool, turnMap map[string][]int, obstructions [][]int)
+func isLoop(startPosition []int, direction []int, inBoundsFunc func([]int) bool, turnMap map[string][]int, oldObstructions [][]int, newObstruction []int, directions [][]int, channel chan int, taskId int) {
+	newObstructions := append(make([][]int, 0), oldObstructions...)
+	newObstructions = append(newObstructions, newObstruction)
+	srcToDstMap := getSrcToDstMap(newObstructions, directions, inBoundsFunc)
+
+	currPosition := append(make([]int, 0), startPosition...)
+	stopsTakenStrings := append(make([]string, 0), locationToString(currPosition))
+	for inBoundsFunc(currPosition) {
+		// Get next position and add to path
+		pathLeg := srcToDstMap[getKey(currPosition, direction)]
+		newPosition := pathLeg.dst
+
+		if newPosition != nil {
+			// If we have already stopped at this location, we are about to enter a loop so ack and halt
+			if slices.Contains(stopsTakenStrings, locationToString(pathLeg.dst)) {
+				fmt.Printf("YES\t%d\n", taskId)
+				// fmt.Printf("Curr %v\tNext %v\tNew obs %v\tSteps %v\t Old obs: %v\n", currPosition, pathLeg.dst, newObstruction, stopsTakenStrings, oldObstructions)
+				channel <- 1
+				return
+			} else {
+				stopsTakenStrings = append(stopsTakenStrings, locationToString(pathLeg.dst))
+				// fmt.Println(stopsTakenStrings)
+				// Set new variables
+				currPosition = newPosition
+				direction = turnMap[fmt.Sprintf("%d,%d", direction[0], direction[1])]
+			}
+		} else { // Now would be out of bounds and did not enter a loop
+			fmt.Printf("NO\t%d\n", taskId)
+			channel <- 0
+			return
+		}
+	}
+}
 
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
@@ -200,11 +240,29 @@ func run(part2 bool, input string) any {
 	srcToDstMap := getSrcToDstMap(obstructions, directions, inBoundsFunc)
 
 	// Find the path
-	locationsTraversed := findThePath(startPosition, direction, inBoundsFunc, srcToDstMap, turnMap)
+	locationsTraversed := findThePath(startPosition, append(make([]int, 0), direction...), inBoundsFunc, srcToDstMap, turnMap)
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		return "not implemented"
+		// fmt.Println(locationsTraversed)
+		// locationsTraversed := [][]int{{9, 7}}
+		isLoopChannel := make(chan int)
+		batchSize := 500
+		numberOfLoops := 0
+		for b := 0; b < len(locationsTraversed); b += batchSize {
+			tasksQueued := 0
+			for i, locationTrav := range locationsTraversed[b:intMin(b+batchSize, len(locationsTraversed))] {
+				if !reflect.DeepEqual(locationTrav, startPosition) {
+					go isLoop(startPosition, append(make([]int, 0), direction...), inBoundsFunc, turnMap, obstructions, locationTrav, directions, isLoopChannel, b+i+1)
+					tasksQueued += 1
+				}
+			}
+			// fmt.Println(tasksQueued)
+			for i := 0; i < tasksQueued; i++ {
+				numberOfLoops += <-isLoopChannel
+			}
+		}
+		return numberOfLoops
 	} else {
 		return len(locationsTraversed)
 	}
