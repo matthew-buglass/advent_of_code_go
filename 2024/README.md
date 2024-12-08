@@ -49,3 +49,12 @@ run(part2, input-user) returned in 1ms => 6257
 run(part1, input-example) returned in 668µs => 41
 run(part1, input-user) returned in 66ms => 4982
 ```
+
+## Question 5
+### Synchronous
+```
+run(part1, input-example) returned in 109µs => 3749
+run(part1, input-user) returned in 71ms => 1582598718861
+run(part2, input-example) returned in 63µs => 11387
+run(part2, input-user) returned in 7s => 165278151522644
+```

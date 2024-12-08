@@ -41,13 +41,13 @@ func extendCartesianProductPairs(a [][]func(a int, b int) int, b []func(a int, b
 
 func genCartesianProducts(srcOpFuncArray []func(a int, b int) int, numInProd int) [][]func(a int, b int) int {
 	// numToGenerate := powInt(len(srcOpFuncArray), numInProd)
-	dstOpFuncArray := append(make([][]func(a int, b int) int, 0), srcOpFuncArray)
+	dstOpFuncArray := make([][]func(a int, b int) int, 0)
+	for _, srcFunc := range srcOpFuncArray {
+		dstOpFuncArray = append(dstOpFuncArray, append(make([]func(a int, b int) int, 0), srcFunc))
+	}
+
 	for i := 1; i < numInProd; i++ {
-		if i == 1 {
-			dstOpFuncArray = cartesianProductPairs(srcOpFuncArray, srcOpFuncArray)
-		} else {
-			dstOpFuncArray = extendCartesianProductPairs(dstOpFuncArray, srcOpFuncArray)
-		}
+		dstOpFuncArray = extendCartesianProductPairs(dstOpFuncArray, srcOpFuncArray)
 	}
 
 	return dstOpFuncArray
@@ -89,10 +89,33 @@ func parseInput(input string) []Problem {
 	return elems
 }
 
-func canBeComputed(problem Problem, operatorFuncArray []func(a int, b int) int) int {
+func canBeComputed(components []int, solution int, operatorFuncArray []func(a int, b int) int, channel chan int, taskId int) {
+	operatorPerm := genCartesianProducts(operatorFuncArray, len(components)-1)
+
+	for _, operators := range operatorPerm {
+		// fmt.Println(taskId, len(operatorPerm))
+		runningTotal := 0
+		for i, operator := range operators {
+			if i == 0 {
+				runningTotal = operator(components[i], components[i+1])
+			} else {
+				runningTotal = operator(runningTotal, components[i+1])
+			}
+		}
+		if runningTotal == solution {
+			channel <- runningTotal
+			// return runningTotal
+		}
+	}
+	channel <- 0
+	// return 0
+}
+
+func canBeComputedSync(problem Problem, operatorFuncArray []func(a int, b int) int) int {
 	operatorPerm := genCartesianProducts(operatorFuncArray, len(problem.components)-1)
 
 	for _, operators := range operatorPerm {
+		// fmt.Println(taskId, len(operatorPerm))
 		runningTotal := 0
 		for i, operator := range operators {
 			if i == 0 {
@@ -125,17 +148,80 @@ func run(part2 bool, input string) any {
 	add := func(a int, b int) int {
 		return a + b
 	}
+
+	// when you're ready to do part 2, remove this "not implemented" block
+	if part2 {
+		concat := func(a int, b int) int {
+			newNumber, _ := strconv.Atoi(fmt.Sprintf("%d%d", a, b))
+			return newNumber
+		}
+		operatorFuncArray := []func(a int, b int) int{
+			add,
+			multiply,
+			concat,
+		}
+		totalCompute := 0
+		for _, problem := range problems { // the actual answer in 1582598718861, but I have a pointer issue in the async implementation
+			// cartProduct := operatorFuncArray[len(problem.components)]
+			// if cartProduct == nil {
+
+			// }
+			// components := append(make([]int, 0), problem.components...)
+			// solution := problem.solution
+			// go canBeComputed(components, solution, operatorFuncArray, resultChannel, i+1)
+			totalCompute += canBeComputedSync(problem, operatorFuncArray)
+		}
+
+		// numvalid := 0
+		// for i := 0; i < len(problems); i++ {
+		// 	res := <-resultChannel
+		// 	if res > 0 {
+		// 		numvalid++
+		// 	}
+		// 	if res < 0 {
+		// 		fmt.Println("num of combos has changed")
+		// 	}
+
+		// 	totalCompute += res
+		// }
+
+		// fmt.Println(numvalid)
+		// fmt.Println(len(problems))
+		return totalCompute
+	}
+	// solve part 1 here
 	operatorFuncArray := []func(a int, b int) int{
 		add,
 		multiply,
 	}
 
-	// when you're ready to do part 2, remove this "not implemented" block
-	if part2 {
-		return "not implemented"
+	// resultChannel := make(chan int)
+	totalCompute := 0
+	for _, problem := range problems { // the actual answer in 1582598718861, but I have a pointer issue in the async implementation
+		// cartProduct := operatorFuncArray[len(problem.components)]
+		// if cartProduct == nil {
+
+		// }
+		// components := append(make([]int, 0), problem.components...)
+		// solution := problem.solution
+		// go canBeComputed(components, solution, operatorFuncArray, resultChannel, i+1)
+		totalCompute += canBeComputedSync(problem, operatorFuncArray)
 	}
-	// solve part 1 here
-	fmt.Println(problems)
-	canBeComputed(problems[0], operatorFuncArray)
-	return 42
+
+	// numvalid := 0
+	// for i := 0; i < len(problems); i++ {
+	// 	res := <-resultChannel
+	// 	if res > 0 {
+	// 		numvalid++
+	// 	}
+	// 	if res < 0 {
+	// 		fmt.Println("num of combos has changed")
+	// 	}
+
+	// 	totalCompute += res
+	// }
+
+	// fmt.Println(numvalid)
+	// fmt.Println(len(problems))
+	return totalCompute
 }
