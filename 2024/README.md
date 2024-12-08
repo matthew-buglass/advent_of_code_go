@@ -50,7 +50,7 @@ run(part1, input-example) returned in 668µs => 41
 run(part1, input-user) returned in 66ms => 4982
 ```
 
-## Question 5
+## Question 7
 ### Synchronous
 ```
 run(part1, input-example) returned in 109µs => 3749
