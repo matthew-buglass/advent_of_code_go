@@ -58,3 +58,11 @@ run(part1, input-user) returned in 71ms => 1582598718861
 run(part2, input-example) returned in 63µs => 11387
 run(part2, input-user) returned in 7s => 165278151522644
 ```
+
+## Question 8
+```
+run(part1, input-example) returned in 110µs => 14
+run(part1, input-user) returned in 437µs => 228
+run(part2, input-example) returned in 62µs => 34
+run(part2, input-user) returned in 1ms => 766
+```

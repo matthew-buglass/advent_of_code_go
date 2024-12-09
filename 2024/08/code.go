@@ -63,6 +63,25 @@ func getAntinodeLocations(antennaLocations [][]int, channel chan []int) {
 	channel <- nil
 }
 
+func getAllAntinodeLocations(antennaLocations [][]int, inBoundsFunction func([]int) bool, channel chan []int) {
+	for i, locA := range antennaLocations[:len(antennaLocations)-1] {
+		for _, locB := range antennaLocations[i+1:] {
+			lastA := getTranslation(locA, getVectorOfPoints(locB, locA))
+			lastB := getTranslation(locB, getVectorOfPoints(locA, locB))
+			for inBoundsFunction(lastA) {
+				channel <- lastA
+				lastA = getTranslation(lastA, getVectorOfPoints(locB, locA))
+			}
+			for inBoundsFunction(lastB) {
+				channel <- lastB
+				lastB = getTranslation(lastB, getVectorOfPoints(locA, locB))
+			}
+		}
+	}
+	// send a poison pill to indicate we are done.
+	channel <- nil
+}
+
 func locationToString(location []int) string {
 	return fmt.Sprintf("%d,%d", location[0], location[1])
 }
@@ -74,18 +93,44 @@ func locationToString(location []int) string {
 // 4. with: true (part2), and user input
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
-	// when you're ready to do part 2, remove this "not implemented" block
-	if part2 {
-		return "not implemented"
-	}
-
-	// solve part 1 here - 221 is too low and 515 is the maximum
 	symbolToLocationsMap, spaceBounds := parseInput(input)
 
 	inBoundsFunc := func(pos []int) bool {
 		return 0 <= pos[0] && pos[0] <= spaceBounds[0] && 0 <= pos[1] && pos[1] <= spaceBounds[1]
 	}
 
+	// when you're ready to do part 2, remove this "not implemented" block
+	if part2 {
+		trackedLocations := []string{}
+		resultChannel := make(chan []int)
+		numTasks := 0
+		for _, v := range symbolToLocationsMap {
+			go getAllAntinodeLocations(v, inBoundsFunc, resultChannel)
+			for _, vi := range v {
+				trackedLocations = append(trackedLocations, locationToString(vi))
+			}
+			numTasks++
+		}
+
+		numPoisonPills := 0
+		for numPoisonPills < numTasks {
+			result := <-resultChannel
+			switch result {
+			case nil:
+				numPoisonPills += 1
+			default:
+				inBoundsFunc(result)
+				resString := locationToString(result)
+				if inBoundsFunc(result) &&
+					!slices.Contains(trackedLocations, resString) {
+					trackedLocations = append(trackedLocations, resString)
+				}
+			}
+		}
+		return len(trackedLocations)
+	}
+
+	// solve part 1 here
 	resultChannel := make(chan []int)
 	numTasks := 0
 	for _, v := range symbolToLocationsMap {
