@@ -190,17 +190,15 @@ func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBo
 		nextPos := advance(currPos, currDirection)
 
 		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
-			// if we are hitting an obstruction, turn
+			// if we are hitting an obstruction, record it and turn
+			uniqueTurnLocationStrings = append(uniqueTurnLocationStrings, getKey(currPos, currDirection))
 			currDirection = turnMap[locationToString(currDirection)]
-			fmt.Println("turn", currPos)
 		} else {
 			// if we aren't, walk forward
 			currPos = nextPos
-			fmt.Println("walk to", currPos)
 		}
 
 	}
-	// fmt.Println("not loop", currPos, obstructionStrings, uniqueTurnLocationStrings)
 	channel <- 0
 }
 
@@ -321,13 +319,12 @@ func run(part2 bool, input string) any {
 			obstructionStrings = append(obstructionStrings, locationToString(obs))
 		}
 		// now I'm over counting. it's somewhere between 1443 and 1818. It's also not 1780, 1620, 1624, 1486.
-		for i := 0; i < spaceBounds[0]; i++ {
-			for j := 0; j < spaceBounds[1]; j++ {
-				go isLoop(startPosition, direction, turnMap, inBoundsFunc, append(obstructionStrings, locationToString([]int{i, j})), []string{}, resChannel)
+		for i := 0; i < spaceBounds[0]+1; i++ {
+			for j := 0; j < spaceBounds[1]+1; j++ {
+				newObs := append(obstructionStrings, locationToString([]int{i, j}))
+				go isLoop(startPosition, direction, turnMap, inBoundsFunc, newObs, []string{}, resChannel)
 				numTasks++
-				break
 			}
-			break
 		}
 
 		numLoops := 0
