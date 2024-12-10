@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 func convertStrArrToIntArr(strArr []string) []int {
@@ -31,4 +32,9 @@ func parseInputToInt(input string) [][]int {
 
 func powInt(x, y int) int {
 	return int(math.Pow(float64(x), float64(y)))
+}
+
+func waitAndClose(channel chan any, wg *sync.WaitGroup) {
+	defer close(channel)
+	wg.Wait()
 }
