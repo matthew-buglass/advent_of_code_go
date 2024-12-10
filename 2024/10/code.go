@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 )
@@ -114,7 +115,9 @@ func (r TrailResult) equals(t TrailResult) bool {
 }
 
 func appendAuditToFile(filename string, content string) {
+	return
 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+
 	if err != nil {
 		panic(err)
 	}
@@ -200,6 +203,75 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 	countChannel <- result
 }
 
+func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan int, numTasks *int, inBoundsFunc func([]int) bool) {
+	currentPos := append(make([]int, 0, 2), startingPos...)
+	trailValue, err := getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
+
+	if err != nil {
+		countChannel <- 0
+		return
+	}
+
+	for trailValue < 9 {
+		// Get hte possible forks in the road
+		trailsForward := make([][]int, 0, 3)
+
+		leftPos := getTranslation(currentPos, []int{0, -1})
+		rightPos := getTranslation(currentPos, []int{0, 1})
+		upPos := getTranslation(currentPos, []int{-1, 0})
+		downPos := getTranslation(currentPos, []int{1, 0})
+
+		leftVal, leftErr := getValueFromCoords(puzzleMap, leftPos, inBoundsFunc)
+		rightVal, rightErr := getValueFromCoords(puzzleMap, rightPos, inBoundsFunc)
+		upVal, upErr := getValueFromCoords(puzzleMap, upPos, inBoundsFunc)
+		downVal, downErr := getValueFromCoords(puzzleMap, downPos, inBoundsFunc)
+
+		if leftErr == nil && leftVal-trailValue == 1 {
+			trailsForward = append(trailsForward, leftPos)
+		}
+		if rightErr == nil && rightVal-trailValue == 1 {
+			trailsForward = append(trailsForward, rightPos)
+		}
+		if upErr == nil && upVal-trailValue == 1 {
+			trailsForward = append(trailsForward, upPos)
+		}
+		if downErr == nil && downVal-trailValue == 1 {
+			trailsForward = append(trailsForward, downPos)
+		}
+
+		// walk forward
+		switch len(trailsForward) {
+		case 0:
+			countChannel <- 0
+			return
+		case 1:
+			currentPos = trailsForward[0]
+		default:
+			currentPos = trailsForward[0]
+
+			// queue sub tasks
+			otherTrails := trailsForward[1:]
+			*numTasks += len(otherTrails)
+			appendAuditToFile(auditFileName, fmt.Sprintf(
+				"%d,%d,%v,%v\n",
+				currentPos[0],
+				currentPos[1],
+				len(otherTrails),
+				otherTrails,
+			))
+			for _, pos := range otherTrails {
+				go findTrailScore2(pos, puzzleMap, countChannel, numTasks, inBoundsFunc)
+			}
+		}
+
+		// set variables for next iteration. If we are already here, we know that we are within the map
+		trailValue, _ = getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
+		// fmt.Println(currentPos, trailValue)
+	}
+	// if we make it here, we found the top
+	countChannel <- 1
+}
+
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
 // 2. with: true (part2), and example input
@@ -207,19 +279,17 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 // 4. with: true (part2), and user input
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
-	auditFileName = "audit_3.csv"
+	partMap := map[bool]int{
+		true:  2,
+		false: 1,
+	}
+	auditFileName = fmt.Sprintf("audit_part-%d_time-%s", partMap[part2], time.Now())
 
 	problemArr, trailHeads, spaceBounds := parseInput(input)
 	inBoundsFunc := func(pos []int) bool {
 		return 0 <= pos[0] && pos[0] <= spaceBounds[0] && 0 <= pos[1] && pos[1] <= spaceBounds[1]
 	}
 
-	// fmt.Println(problemArr, trailHeads, spaceBounds)
-	// when you're ready to do part 2, remove this "not implemented" block
-	if part2 {
-		return "not implemented"
-	}
-	// solve part 1 here
 	appendAuditToFile(auditFileName, fmt.Sprintf(
 		"%s,%s,%s,%s\n",
 		"Direction I",
@@ -228,6 +298,32 @@ func run(part2 bool, input string) any {
 		"Other trails",
 	))
 
+	// fmt.Println(problemArr, trailHeads, spaceBounds)
+	// when you're ready to do part 2, remove this "not implemented" block
+	if part2 {
+		tasksToExpect := 0
+		resChannel := make(chan int)
+		for _, startPosition := range trailHeads {
+			go findTrailScore2(startPosition, &problemArr, resChannel, &tasksToExpect, inBoundsFunc)
+			tasksToExpect++
+		}
+
+		numResultsReceived := 0
+		results := make([]int, 0)
+		totalScore := 0
+		for numResultsReceived < tasksToExpect {
+			result := <-resChannel
+			numResultsReceived++
+			totalScore += result
+			results = append(results, result)
+
+			// fmt.Println(results)
+			// fmt.Println(numResultsReceived, tasksToExpect)
+		}
+		fmt.Println(numResultsReceived, tasksToExpect)
+		return totalScore
+	}
+	// solve part 1 here
 	tasksToExpect := 0
 	resChannel := make(chan TrailResult)
 	nilResult := TrailResult{-1, -1, -1, -1}
