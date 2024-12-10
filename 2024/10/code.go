@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
@@ -72,25 +73,11 @@ func getTranslation(src []int, transVect []int) []int {
 	return []int{src[0] + transVect[0], src[1] + transVect[1]}
 }
 
-// func subTask(channel chan int) {
-// 	// send diff poison pill
-// 	channel <- 1
-// }
-
-// func testIntPointer(numPoisonPills *int, channel chan int) {
-// 	// increment the number of poison pills we expect
-// 	*numPoisonPills++
-// 	go subTask(channel)
-
-// 	// send poison pill
-// 	channel <- 0
-// }
-
 func getValueFromCoords(puzzleMap *[][]int, position []int, inBoundsFunc func([]int) bool) (int, error) {
 	if inBoundsFunc(position) {
 		return (*puzzleMap)[position[0]][position[1]], nil
 	} else {
-		return -1, errors.New("Position not in bounds")
+		return -1, errors.New("position not in bounds")
 	}
 }
 
@@ -117,7 +104,6 @@ func (r TrailResult) equals(t TrailResult) bool {
 func appendAuditToFile(filename string, content string) {
 	return
 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-
 	if err != nil {
 		panic(err)
 	}
@@ -131,7 +117,9 @@ func appendAuditToFile(filename string, content string) {
 
 var auditFileName string = "audit.csv"
 
-func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan TrailResult, numTasks *int, inBoundsFunc func([]int) bool, resultTemplate *TrailResult, nilResult TrailResult) {
+func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan TrailResult, waitGroup *sync.WaitGroup, inBoundsFunc func([]int) bool, resultTemplate *TrailResult, nilResult TrailResult) {
+	defer waitGroup.Done()
+
 	currentPos := append(make([]int, 0, 2), startingPos...)
 	trailValue, err := getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
 
@@ -179,7 +167,6 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 
 			// queue sub tasks
 			otherTrails := trailsForward[1:]
-			*numTasks += len(otherTrails)
 			appendAuditToFile(auditFileName, fmt.Sprintf(
 				"%d,%d,%v,%v\n",
 				currentPos[0],
@@ -188,13 +175,13 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 				otherTrails,
 			))
 			for _, pos := range otherTrails {
-				go findTrailScore(pos, puzzleMap, countChannel, numTasks, inBoundsFunc, resultTemplate, nilResult)
+				waitGroup.Add(1)
+				go findTrailScore(pos, puzzleMap, countChannel, waitGroup, inBoundsFunc, resultTemplate, nilResult)
 			}
 		}
 
 		// set variables for next iteration. If we are already here, we know that we are within the map
 		trailValue, _ = getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
-		// fmt.Println(currentPos, trailValue)
 	}
 	// if we make it here, we found the top
 	result := (*resultTemplate).deepCopy()
@@ -203,7 +190,8 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 	countChannel <- result
 }
 
-func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan int, numTasks *int, inBoundsFunc func([]int) bool) {
+func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan int, waitGroup *sync.WaitGroup, inBoundsFunc func([]int) bool) {
+	defer waitGroup.Done()
 	currentPos := append(make([]int, 0, 2), startingPos...)
 	trailValue, err := getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
 
@@ -251,7 +239,7 @@ func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan in
 
 			// queue sub tasks
 			otherTrails := trailsForward[1:]
-			*numTasks += len(otherTrails)
+			waitGroup.Add(len(otherTrails))
 			appendAuditToFile(auditFileName, fmt.Sprintf(
 				"%d,%d,%v,%v\n",
 				currentPos[0],
@@ -260,13 +248,12 @@ func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan in
 				otherTrails,
 			))
 			for _, pos := range otherTrails {
-				go findTrailScore2(pos, puzzleMap, countChannel, numTasks, inBoundsFunc)
+				go findTrailScore2(pos, puzzleMap, countChannel, waitGroup, inBoundsFunc)
 			}
 		}
 
 		// set variables for next iteration. If we are already here, we know that we are within the map
 		trailValue, _ = getValueFromCoords(puzzleMap, currentPos, inBoundsFunc)
-		// fmt.Println(currentPos, trailValue)
 	}
 	// if we make it here, we found the top
 	countChannel <- 1
@@ -298,56 +285,55 @@ func run(part2 bool, input string) any {
 		"Other trails",
 	))
 
-	// fmt.Println(problemArr, trailHeads, spaceBounds)
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		tasksToExpect := 0
+		var wg sync.WaitGroup
+		wg.Add(len(trailHeads))
 		resChannel := make(chan int)
 		for _, startPosition := range trailHeads {
-			go findTrailScore2(startPosition, &problemArr, resChannel, &tasksToExpect, inBoundsFunc)
-			tasksToExpect++
+			go findTrailScore2(startPosition, &problemArr, resChannel, &wg, inBoundsFunc)
 		}
+
+		// Close the channel once all the tasks are finished
+		go func() {
+			defer close(resChannel)
+			wg.Wait()
+		}()
 
 		numResultsReceived := 0
-		results := make([]int, 0)
 		totalScore := 0
-		for numResultsReceived < tasksToExpect {
-			result := <-resChannel
+		for result := range resChannel {
 			numResultsReceived++
 			totalScore += result
-			results = append(results, result)
-
-			// fmt.Println(results)
-			// fmt.Println(numResultsReceived, tasksToExpect)
 		}
-		fmt.Println(numResultsReceived, tasksToExpect)
 		return totalScore
 	}
 	// solve part 1 here
-	tasksToExpect := 0
+	var wg sync.WaitGroup
 	resChannel := make(chan TrailResult)
 	nilResult := TrailResult{-1, -1, -1, -1}
+	wg.Add(len(trailHeads))
 	for _, startPosition := range trailHeads {
 		trailResultTemplate := TrailResult{startI: startPosition[0], startJ: startPosition[1]}
-		go findTrailScore(startPosition, &problemArr, resChannel, &tasksToExpect, inBoundsFunc, &trailResultTemplate, nilResult)
-		tasksToExpect++
+		go findTrailScore(startPosition, &problemArr, resChannel, &wg, inBoundsFunc, &trailResultTemplate, nilResult)
 	}
+
+	// Close the channel once all the tasks are finished
+	go func() {
+		defer close(resChannel)
+		wg.Wait()
+	}()
 
 	numResultsReceived := 0
 	results := make([]TrailResult, 0)
 	totalScore := 0
-	for numResultsReceived < tasksToExpect {
-		result := <-resChannel
+	for result := range resChannel {
 		numResultsReceived++
 
 		if result != nilResult && !slices.Contains(results, result) {
 			totalScore += 1
 			results = append(results, result)
 		}
-
-		// fmt.Println(results)
-		// fmt.Println(numResultsReceived, tasksToExpect)
 	}
-	fmt.Println(numResultsReceived, tasksToExpect)
 	return totalScore
 }
