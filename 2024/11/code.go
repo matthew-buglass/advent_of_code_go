@@ -2,7 +2,6 @@ package main
 
 import (
 	"cmp"
-	"fmt"
 	"math"
 	"regexp"
 	"slices"
@@ -117,6 +116,88 @@ func blinkStoneMemoizedRecursive(stoneNumber int, stoneIndex int, currentSteps i
 	return nil
 }
 
+type MemoIndex struct {
+	src        int
+	stepsToDST int
+}
+
+func getBlinkResult(stoneNumber int) []int {
+	// Returns an array where the first number is the index order of the stones and the subsequent
+	// elements are the results of blinking the stone.
+	resultArray := []int{}
+	if stoneNumber == 0 {
+		resultArray = []int{1}
+	} else if isEvenDigits(stoneNumber) {
+		stoneStringNumber := strconv.Itoa(stoneNumber)
+		halfIdx := len(stoneStringNumber) / 2
+		num1, _ := strconv.Atoi(stoneStringNumber[:halfIdx])
+		num2, _ := strconv.Atoi(stoneStringNumber[halfIdx:])
+		resultArray = []int{num1, num2}
+	} else {
+		resultArray = []int{stoneNumber * 2024}
+	}
+	return resultArray
+}
+
+func blinkStoneMemoizedRecursive2(stoneNumber int, stepsRemaining int, memoMap *sync.Map, countChannel chan int, eg *errgroup.Group) error {
+	// Returns an array where the first number is the index order of the stones and the subsequent
+	// elements are the results of blinking the stone.
+
+	// Find the furthest step that we have recorded
+	stepsFound := stepsRemaining
+	memo, ok := memoMap.Load(MemoIndex{src: stoneNumber, stepsToDST: stepsFound})
+	for !ok && stepsFound > 0 {
+		stepsFound--
+		memo, ok = memoMap.Load(MemoIndex{src: stoneNumber, stepsToDST: stepsFound})
+	}
+
+	jumpTo := []int{stoneNumber}
+	if ok {
+		jumpTo = memo.([]int)
+	}
+
+	// if we found a jump to the end, send it to the channel and return
+	if stepsFound == stepsRemaining {
+		// fmt.Println(stoneNumber, stepsFound, jumpTo)
+		countChannel <- len(jumpTo)
+		return nil
+	}
+
+	// Current State:
+	//		jumpTo: all the results that we have stored
+	//		stepsFound: the number of steps it took to get there
+
+	// find the next jump and memoize it
+	stepsFound++
+	nextJumps := []int{}
+	for _, jump := range jumpTo {
+		m, ok := memoMap.Load(MemoIndex{src: jump, stepsToDST: 1})
+		if ok {
+			nextMemo := m.([]int)
+			nextJumps = append(nextJumps, nextMemo...)
+		} else {
+			newJumps := getBlinkResult(jump)
+			memoMap.Store(MemoIndex{src: jump, stepsToDST: 1}, newJumps)
+			nextJumps = append(nextJumps, newJumps...)
+		}
+	}
+	memoMap.Store(MemoIndex{src: stoneNumber, stepsToDST: stepsFound}, nextJumps)
+
+	// for each of the new jumps that we have calculated, find their descendants
+	for _, j := range nextJumps {
+		// blinkStoneMemoizedRecursive2(j, stepsRemaining-stepsFound, memoMap, countChannel, eg)
+		// try asynchronous
+		started := eg.TryGo(func() error {
+			return blinkStoneMemoizedRecursive2(j, stepsRemaining-stepsFound, memoMap, countChannel, eg)
+		})
+		// Otherwise go synchronous
+		if !started {
+			blinkStoneMemoizedRecursive2(j, stepsRemaining-stepsFound, memoMap, countChannel, eg)
+		}
+	}
+	return nil
+}
+
 // func blinkStoneRecursive(stoneNumber int, stoneIndex int, currentSplits int, totalSplits int, resultChannel chan []int, wg *sync.WaitGroup) {
 // 	// Returns an array where the first number is the index order of the stones and the subsequent
 // 	// elements are the results of blinking the stone.
@@ -153,19 +234,19 @@ func run(part2 bool, input string) any {
 	numBlinks := 25
 
 	if part2 {
-		numBlinks = 45
+		numBlinks = 75
 		blinkMemo := sync.Map{}
 		// var wg sync.WaitGroup
 		countLeafsChannel := make(chan int, 300)
 
 		eg := new(errgroup.Group)
-		eg.SetLimit(2000000) // limit the number of go routines
+		eg.SetLimit(1000) // limit the number of go routines
 
 		// queue sub tasks
-		for j, stone := range stoneNumbers {
+		for _, stone := range stoneNumbers {
 			// wg.Add(1)
 			eg.Go(func() error {
-				return blinkStoneMemoizedRecursive(stone, j, 0, numBlinks, &blinkMemo, countLeafsChannel, eg)
+				return blinkStoneMemoizedRecursive2(stone, numBlinks, &blinkMemo, countLeafsChannel, eg)
 			})
 		}
 
@@ -175,7 +256,6 @@ func run(part2 bool, input string) any {
 		totalLeafs := 0
 		for result := range countLeafsChannel {
 			totalLeafs += result
-			fmt.Println(totalLeafs)
 		}
 		return totalLeafs
 	}
