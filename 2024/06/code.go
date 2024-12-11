@@ -6,12 +6,24 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 )
 
+var expectedObs []string
+
 func main() {
 	aoc.Harness(run)
+}
+
+func arrsEqual(a []string, b []string) bool {
+	for i, value := range a {
+		if !(value == b[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func getLeadingIndices(matchPairs [][]int) []int {
@@ -45,9 +57,10 @@ func parseInput(input string) (position []int, direction []int, spaceBounds []in
 	return position, direction, spaceBounds, obstructions
 }
 
-// func calculateDistance(start []int, end []int) int {
-// 	return intAbsDiff(start[0], end[0]) + intAbsDiff(start[1], end[1])
-// }
+func waitAndClose(channel chan int, wg *sync.WaitGroup) {
+	defer close(channel)
+	wg.Wait()
+}
 
 func getKey(position []int, direction []int) string {
 	return fmt.Sprintf("%d,%d|%d,%d", position[0], position[1], direction[0], direction[1])
@@ -173,11 +186,13 @@ func advance(currPos []int, stepVector []int) (nextPos []int) {
 	return []int{currPos[0] + stepVector[0], currPos[1] + stepVector[1]}
 }
 
-func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructionStrings []string, previousTurnLocations []string, channel chan int) {
+func isLoop(startPosition []int, direction []int, turnMap *map[string][]int, inBoundsFunc func([]int) bool, obstructionStrings []string, previousTurnLocations []string, channel chan int, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
 	// Setup
 	currPos := []int{startPosition[0], startPosition[1]}
 	currDirection := []int{direction[0], direction[1]}
-	uniqueTurnLocationStrings := append(make([]string, 0), previousTurnLocations...)
+	uniqueTurnLocationStrings := append(make([]string, 0, len(previousTurnLocations)), previousTurnLocations...)
 
 	for inBoundsFunc(currPos) {
 		// if we have already been here from this direction, we are in a loop
@@ -185,14 +200,13 @@ func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBo
 			channel <- 1
 			return
 		}
-
 		// otherwise, we need to look at the next direction
 		nextPos := advance(currPos, currDirection)
 
 		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
 			// if we are hitting an obstruction, record it and turn
 			uniqueTurnLocationStrings = append(uniqueTurnLocationStrings, getKey(currPos, currDirection))
-			currDirection = turnMap[locationToString(currDirection)]
+			currDirection = (*turnMap)[locationToString(currDirection)]
 		} else {
 			// if we aren't, walk forward
 			currPos = nextPos
@@ -202,56 +216,56 @@ func isLoop(startPosition []int, direction []int, turnMap map[string][]int, inBo
 	channel <- 0
 }
 
-func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) int {
-	// Setup
-	currPos := append(make([]int, 0), startPosition...)
-	currDirection := append(make([]int, 0), direction...)
-	obstructionStrings := make([]string, 0)
-	for _, obs := range obstructions {
-		obstructionStrings = append(obstructionStrings, locationToString(obs))
-	}
+// func basicLoopPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) int {
+// 	// Setup
+// 	currPos := append(make([]int, 0), startPosition...)
+// 	currDirection := append(make([]int, 0), direction...)
+// 	obstructionStrings := make([]string, 0)
+// 	for _, obs := range obstructions {
+// 		obstructionStrings = append(obstructionStrings, locationToString(obs))
+// 	}
 
-	// // At every step, if we find a location that we haven't been to before, we are going to launch a sub-problem to see
-	// // if introducing a new obstruction would cause a loop
-	subProblemChannel := make(chan int)
-	numSubTasks := 0
+// 	// // At every step, if we find a location that we haven't been to before, we are going to launch a sub-problem to see
+// 	// // if introducing a new obstruction would cause a loop
+// 	subProblemChannel := make(chan int)
+// 	numSubTasks := 0
 
-	uniqueTurnLocationStrings := append(make([]string, 0), locationToString(startPosition))
-	uniqueLocations := make([]string, 0)
-	numLoops := 0
-	for inBoundsFunc(currPos) {
-		nextPos := advance(currPos, currDirection)
-		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
-			// rotate until we can advance
-			for slices.Contains(obstructionStrings, locationToString(nextPos)) {
-				if !slices.Contains(uniqueTurnLocationStrings, getKey(currPos, currDirection)) {
-					uniqueTurnLocationStrings = append(uniqueTurnLocationStrings, getKey(currPos, currDirection))
-				}
-				currDirection = turnMap[locationToString(currDirection)]
-				nextPos = advance(currPos, currDirection)
-			}
-		} else {
-			if !slices.Contains(uniqueLocations, locationToString(currPos)) {
-				// If we haven't been here before from this, put a blocker in front and kick off a sub-task
-				// newObsStrings := append(make([]string, 0), obstructionStrings...)
-				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, []string{}, []string{}, subProblemChannel)
-				numSubTasks += 1
+// 	uniqueTurnLocationStrings := append(make([]string, 0), locationToString(startPosition))
+// 	uniqueLocations := make([]string, 0)
+// 	numLoops := 0
+// 	for inBoundsFunc(currPos) {
+// 		nextPos := advance(currPos, currDirection)
+// 		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
+// 			// rotate until we can advance
+// 			for slices.Contains(obstructionStrings, locationToString(nextPos)) {
+// 				if !slices.Contains(uniqueTurnLocationStrings, getKey(currPos, currDirection)) {
+// 					uniqueTurnLocationStrings = append(uniqueTurnLocationStrings, getKey(currPos, currDirection))
+// 				}
+// 				currDirection = turnMap[locationToString(currDirection)]
+// 				nextPos = advance(currPos, currDirection)
+// 			}
+// 		} else {
+// 			if !slices.Contains(uniqueLocations, locationToString(currPos)) {
+// 				// If we haven't been here before from this, put a blocker in front and kick off a sub-task
+// 				// newObsStrings := append(make([]string, 0), obstructionStrings...)
+// 				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, []string{}, []string{}, subProblemChannel)
+// 				numSubTasks += 1
 
-				// Mark that we have been here
-				uniqueLocations = append(uniqueLocations, locationToString(currPos))
-			}
-		}
+// 				// Mark that we have been here
+// 				uniqueLocations = append(uniqueLocations, locationToString(currPos))
+// 			}
+// 		}
 
-		currPos = nextPos
-	}
+// 		currPos = nextPos
+// 	}
 
-	fmt.Println(numSubTasks)
-	for i := 0; i < numSubTasks; i++ {
-		numLoops += <-subProblemChannel
-	}
+// 	fmt.Println(numSubTasks)
+// 	for i := 0; i < numSubTasks; i++ {
+// 		numLoops += <-subProblemChannel
+// 	}
 
-	return numLoops
-}
+// 	return numLoops
+// }
 
 func basicPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) []string {
 	// Setup
@@ -313,25 +327,32 @@ func run(part2 bool, input string) any {
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
 		resChannel := make(chan int)
-		numTasks := 0
-		obstructionStrings := make([]string, 0)
+		obstructionStrings := make([]string, 0, len(obstructions))
 		for _, obs := range obstructions {
 			obstructionStrings = append(obstructionStrings, locationToString(obs))
 		}
-		// now I'm over counting. it's somewhere between 1443 and 1818. It's also not 1780, 1620, 1624, 1486.
+
+		expectedObs = append(make([]string, 0, len(obstructionStrings)), obstructionStrings...)
+
+		// The answer is 1663
+		var wg sync.WaitGroup
+		wg.Add((spaceBounds[0] + 1) * (spaceBounds[1] + 1))
+
 		for i := 0; i < spaceBounds[0]+1; i++ {
 			for j := 0; j < spaceBounds[1]+1; j++ {
 				newObs := append(obstructionStrings, locationToString([]int{i, j}))
-				go isLoop(startPosition, direction, turnMap, inBoundsFunc, newObs, []string{}, resChannel)
-				numTasks++
+				go isLoop(startPosition, direction, &turnMap, inBoundsFunc, newObs, []string{}, resChannel, &wg)
 			}
 		}
 
+		go waitAndClose(resChannel, &wg)
+
 		numLoops := 0
-		for i := 0; i < numTasks; i++ {
-			numLoops += <-resChannel
+		numResults := 0
+		for result := range resChannel {
+			numLoops += result
+			numResults++
 		}
-		// numLoops := basicLoopPathFinding(startPosition, direction, turnMap, inBoundsFunc, obstructions)
 		return numLoops
 	} else {
 		// Before you ask, yes this is 100% overkill and slower than just doing a basic search synchronously
