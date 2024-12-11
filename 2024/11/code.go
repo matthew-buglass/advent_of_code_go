@@ -98,7 +98,6 @@ func blinkStoneMemoizedRecursive(stoneNumber int, stoneIndex int, currentSteps i
 	// fmt.Println(currentSteps, stoneNumber, newNumbers)
 	if currentSteps == desiredSteps {
 		countChannel <- len(newNumbers)
-		// fmt.Println(newNumbers)
 	} else {
 		wg.Add(len(newNumbers))
 		for _, num := range newNumbers {
@@ -146,7 +145,7 @@ func run(part2 bool, input string) any {
 		numBlinks = 25
 		blinkMemo := sync.Map{}
 		var wg sync.WaitGroup
-		countLeafsChannel := make(chan int)
+		countLeafsChannel := make(chan int, 200)
 
 		// queue sub tasks
 		for j, stone := range stoneNumbers {
@@ -160,7 +159,6 @@ func run(part2 bool, input string) any {
 		totalLeafs := 0
 		for result := range countLeafsChannel {
 			totalLeafs += result
-			// fmt.Println(totalLeafs)
 		}
 		return totalLeafs
 	}
