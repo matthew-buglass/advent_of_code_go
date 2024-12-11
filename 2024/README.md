@@ -81,3 +81,12 @@ run(part1, input-user) returned in 6ms => 667
 run(part2, input-example) returned in 175µs => 81
 run(part2, input-user) returned in 4ms => 1344
 ```
+
+# Question 11
+```
+run(part1, input-example) returned in 190ms => 55312
+run(part1, input-user) returned in 923ms => 183248
+
+run(part1, input-example) returned in 176ms => 55312
+run(part1, input-user) returned in 504ms => 183248
+```
