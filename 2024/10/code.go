@@ -2,14 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 )
@@ -97,26 +94,6 @@ func (r TrailResult) deepCopy() TrailResult {
 	}
 }
 
-func (r TrailResult) equals(t TrailResult) bool {
-	return r.startI == t.startI && r.startJ == t.startJ && r.endI == t.endI && r.endJ == t.endJ
-}
-
-func appendAuditToFile(filename string, content string) {
-	return
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
-
-	if _, err = f.WriteString(content); err != nil {
-		panic(err)
-	}
-}
-
-var auditFileName string = "audit.csv"
-
 func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan TrailResult, waitGroup *sync.WaitGroup, inBoundsFunc func([]int) bool, resultTemplate *TrailResult, nilResult TrailResult) {
 	defer waitGroup.Done()
 
@@ -167,13 +144,6 @@ func findTrailScore(startingPos []int, puzzleMap *[][]int, countChannel chan Tra
 
 			// queue sub tasks
 			otherTrails := trailsForward[1:]
-			appendAuditToFile(auditFileName, fmt.Sprintf(
-				"%d,%d,%v,%v\n",
-				currentPos[0],
-				currentPos[1],
-				len(otherTrails),
-				otherTrails,
-			))
 			for _, pos := range otherTrails {
 				waitGroup.Add(1)
 				go findTrailScore(pos, puzzleMap, countChannel, waitGroup, inBoundsFunc, resultTemplate, nilResult)
@@ -240,13 +210,6 @@ func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan in
 			// queue sub tasks
 			otherTrails := trailsForward[1:]
 			waitGroup.Add(len(otherTrails))
-			appendAuditToFile(auditFileName, fmt.Sprintf(
-				"%d,%d,%v,%v\n",
-				currentPos[0],
-				currentPos[1],
-				len(otherTrails),
-				otherTrails,
-			))
 			for _, pos := range otherTrails {
 				go findTrailScore2(pos, puzzleMap, countChannel, waitGroup, inBoundsFunc)
 			}
@@ -266,24 +229,10 @@ func findTrailScore2(startingPos []int, puzzleMap *[][]int, countChannel chan in
 // 4. with: true (part2), and user input
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
-	partMap := map[bool]int{
-		true:  2,
-		false: 1,
-	}
-	auditFileName = fmt.Sprintf("audit_part-%d_time-%s", partMap[part2], time.Now())
-
 	problemArr, trailHeads, spaceBounds := parseInput(input)
 	inBoundsFunc := func(pos []int) bool {
 		return 0 <= pos[0] && pos[0] <= spaceBounds[0] && 0 <= pos[1] && pos[1] <= spaceBounds[1]
 	}
-
-	appendAuditToFile(auditFileName, fmt.Sprintf(
-		"%s,%s,%s,%s\n",
-		"Direction I",
-		"Direction J",
-		"Num other trails",
-		"Other trails",
-	))
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {

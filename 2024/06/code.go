@@ -2,45 +2,17 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 )
 
-var expectedObs []string
-
 func main() {
 	aoc.Harness(run)
-}
-
-var filename string
-
-func appendAuditToFile(content string) {
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
-
-	if _, err = f.WriteString(content); err != nil {
-		panic(err)
-	}
-}
-
-func arrsEqual(a []string, b []string) bool {
-	for i, value := range a {
-		if !(value == b[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func getLeadingIndices(matchPairs [][]int) []int {
@@ -216,7 +188,6 @@ func isLoop(startPosition []int, direction []int, turnMap *map[string][]int, inB
 		// if we have already been here from this direction, we are in a loop
 		if slices.Contains(uniqueTurnLocationStrings, getKey(currPos, currDirection)) {
 			channel <- 1
-			// appendAuditToFile(fmt.Sprintf("%s\n", obstructionStrings[len(obstructionStrings)-1]))
 			return
 		}
 		// otherwise, we need to look at the next direction
@@ -256,19 +227,15 @@ func concurrentLoopPathFinding(startPosition []int, direction []int, turnMap *ma
 			uniqueTurnLocationStrings = append(uniqueTurnLocationStrings, getKey(currPos, currDirection))
 			currDirection = (*turnMap)[locationToString(currDirection)]
 		} else {
-			if !slices.Contains(addedBlockers, locationToString(nextPos)) {
-				// If we haven't been here before from this, put a blocker here and kick off a sub-task
-				if nextPos[0] == 10 && nextPos[1] == 31 {
-					fmt.Println("Queueing")
-				}
+			if !slices.Contains(addedBlockers, locationToString(nextPos)) && inBoundsFunc(nextPos) {
+				// If we haven't been to the next location before, add queue sub task to see if adding a block there causes a loop
 				newObsStrings := append(make([]string, 0), obstructionStrings...)
 				newObsStrings = append(newObsStrings, locationToString(nextPos))
 				wg.Add(1)
 				go isLoop(currPos, currDirection, turnMap, inBoundsFunc, newObsStrings, uniqueTurnLocationStrings, subProblemChannel, &wg)
 
 				// Mark that we have been here
-				addedBlockers = append(addedBlockers, locationToString(currPos))
-				// appendAuditToFile(fmt.Sprintf("%v\n", addedBlockers))
+				addedBlockers = append(addedBlockers, locationToString(nextPos))
 			}
 
 			// advance
@@ -285,38 +252,7 @@ func concurrentLoopPathFinding(startPosition []int, direction []int, turnMap *ma
 		numLoops += result
 		numResults++
 	}
-	fmt.Println(numResults)
 	return numLoops
-}
-
-func basicPathFinding(startPosition []int, direction []int, turnMap map[string][]int, inBoundsFunc func([]int) bool, obstructions [][]int) []string {
-	// Setup
-	currPos := append(make([]int, 0), startPosition...)
-	currDirection := append(make([]int, 0), direction...)
-	obstructionStrings := make([]string, 0)
-	for _, obs := range obstructions {
-		obstructionStrings = append(obstructionStrings, locationToString(obs))
-	}
-
-	uniqueLocations := make([]string, 0)
-	for inBoundsFunc(currPos) {
-		if !slices.Contains(uniqueLocations, locationToString(currPos)) {
-			uniqueLocations = append(uniqueLocations, locationToString(currPos))
-		}
-
-		nextPos := advance(currPos, currDirection)
-
-		// if we would hit a wall, just rotate and don't advance
-		if slices.Contains(obstructionStrings, locationToString(nextPos)) {
-			currDirection = turnMap[locationToString(currDirection)]
-			nextPos = currPos
-		}
-
-		currPos = nextPos
-	}
-
-	return uniqueLocations
-
 }
 
 // on code change, run will be executed 4 times:
@@ -326,12 +262,6 @@ func basicPathFinding(startPosition []int, direction []int, turnMap map[string][
 // 4. with: true (part2), and user input
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
-	partMap := map[bool]int{
-		true:  2,
-		false: 1,
-	}
-	filename = fmt.Sprintf("audit_part-%d_time-%s", partMap[part2], time.Now())
-
 	startPosition, direction, spaceBounds, obstructions := parseInput(input)
 
 	// solve part 1 here
@@ -359,29 +289,6 @@ func run(part2 bool, input string) any {
 			obstructionStrings = append(obstructionStrings, locationToString(obs))
 		}
 		return concurrentLoopPathFinding(startPosition, direction, &turnMap, inBoundsFunc, obstructionStrings)
-
-		// expectedObs = append(make([]string, 0, len(obstructionStrings)), obstructionStrings...)
-		// resChannel := make(chan int)
-		// // The answer is 1663
-		// var wg sync.WaitGroup
-		// wg.Add((spaceBounds[0] + 1) * (spaceBounds[1] + 1))
-
-		// for i := 0; i < spaceBounds[0]+1; i++ {
-		// 	for j := 0; j < spaceBounds[1]+1; j++ {
-		// 		newObs := append(obstructionStrings, locationToString([]int{i, j}))
-		// 		go isLoop(startPosition, direction, &turnMap, inBoundsFunc, newObs, []string{}, resChannel, &wg)
-		// 	}
-		// }
-
-		// go waitAndClose(resChannel, &wg)
-
-		// numLoops := 0
-		// numResults := 0
-		// for result := range resChannel {
-		// 	numLoops += result
-		// 	numResults++
-		// }
-		// return numLoops
 	} else {
 		// Before you ask, yes this is 100% overkill and slower than just doing a basic search synchronously
 		// I am trying to break down problems so they can be parallelized, even if I shouldn't.
@@ -394,7 +301,6 @@ func run(part2 bool, input string) any {
 
 		// Find the path
 		locationsTraversed := findThePath(startPosition, append(make([]int, 0), direction...), inBoundsFunc, srcToDstMap, turnMap)
-		fmt.Println(locationsTraversed)
 		return len(locationsTraversed)
 	}
 }
