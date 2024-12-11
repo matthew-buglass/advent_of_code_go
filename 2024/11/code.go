@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/jpillora/puzzler/harness/aoc"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -20,9 +22,9 @@ func waitAndClose(channel chan []int, wg *sync.WaitGroup) {
 	wg.Wait()
 }
 
-func waitAndCloseInt(channel chan int, wg *sync.WaitGroup) {
+func waitAndCloseInt(channel chan int, eg *errgroup.Group) {
 	defer close(channel)
-	wg.Wait()
+	eg.Wait()
 }
 
 func convertStrArrToIntArr(strArr []string) []int {
@@ -66,10 +68,10 @@ func blinkStone(stoneNumber int, stoneIndex int, resultChannel chan []int, wg *s
 	resultChannel <- resultArray
 }
 
-func blinkStoneMemoizedRecursive(stoneNumber int, stoneIndex int, currentSteps int, desiredSteps int, memoMap *sync.Map, countChannel chan int, wg *sync.WaitGroup) {
+func blinkStoneMemoizedRecursive(stoneNumber int, stoneIndex int, currentSteps int, desiredSteps int, memoMap *sync.Map, countChannel chan int, eg *errgroup.Group) error {
 	// Returns an array where the first number is the index order of the stones and the subsequent
 	// elements are the results of blinking the stone.
-	defer wg.Done()
+	// defer wg.Done()
 
 	newNumbers := append(make([]int, 0, 1), stoneNumber)
 
@@ -99,11 +101,20 @@ func blinkStoneMemoizedRecursive(stoneNumber int, stoneIndex int, currentSteps i
 	if currentSteps == desiredSteps {
 		countChannel <- len(newNumbers)
 	} else {
-		wg.Add(len(newNumbers))
+		// wg.Add(len(newNumbers))
 		for _, num := range newNumbers {
-			go blinkStoneMemoizedRecursive(num, stoneIndex, currentSteps, desiredSteps, memoMap, countChannel, wg)
+			// Try asynchronously
+			started := eg.TryGo(func() error {
+				return blinkStoneMemoizedRecursive(num, stoneIndex, currentSteps, desiredSteps, memoMap, countChannel, eg)
+			})
+			// Otherwise go synchronous
+			if !started {
+				blinkStoneMemoizedRecursive(num, stoneIndex, currentSteps, desiredSteps, memoMap, countChannel, eg)
+			}
+			// go blinkStoneMemoizedRecursive(num, stoneIndex, currentSteps, desiredSteps, memoMap, countChannel, wg)
 		}
 	}
+	return nil
 }
 
 // func blinkStoneRecursive(stoneNumber int, stoneIndex int, currentSplits int, totalSplits int, resultChannel chan []int, wg *sync.WaitGroup) {
@@ -142,23 +153,29 @@ func run(part2 bool, input string) any {
 	numBlinks := 25
 
 	if part2 {
-		numBlinks = 25
+		numBlinks = 45
 		blinkMemo := sync.Map{}
-		var wg sync.WaitGroup
-		countLeafsChannel := make(chan int, 200)
+		// var wg sync.WaitGroup
+		countLeafsChannel := make(chan int, 300)
+
+		eg := new(errgroup.Group)
+		eg.SetLimit(2000000) // limit the number of go routines
 
 		// queue sub tasks
 		for j, stone := range stoneNumbers {
-			wg.Add(1)
-			go blinkStoneMemoizedRecursive(stone, j, 0, numBlinks, &blinkMemo, countLeafsChannel, &wg)
+			// wg.Add(1)
+			eg.Go(func() error {
+				return blinkStoneMemoizedRecursive(stone, j, 0, numBlinks, &blinkMemo, countLeafsChannel, eg)
+			})
 		}
 
-		go waitAndCloseInt(countLeafsChannel, &wg)
+		go waitAndCloseInt(countLeafsChannel, eg)
 
 		// read results
 		totalLeafs := 0
 		for result := range countLeafsChannel {
 			totalLeafs += result
+			fmt.Println(totalLeafs)
 		}
 		return totalLeafs
 	}
