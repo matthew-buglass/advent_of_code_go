@@ -5,12 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug 2023 01",
+            "name": "Debug 2024 12",
             "type": "go",
             "request": "launch",
-            "mode": "debug",
-            "cwd": "2023/01/",
-            "program": "2023/01/code.go"
-        }
+            "mode": "auto",
+            // "cwd": "2023/01/",
+            "program": "${fileDirname}",
+            "env": {"DEBUG": "1"},
+            "trace": "verbose"
+        },
     ]
 }
