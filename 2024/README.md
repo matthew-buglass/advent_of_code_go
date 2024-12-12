@@ -71,7 +71,10 @@ run(part2, input-user) returned in 1ms => 766
 
 ## Question 9
 ```
-
+run(part1, input-example) returned in 121µs => 1928
+run(part1, input-user) returned in 29ms => 6349606724455
+run(part2, input-example) returned in 25µs => 2858
+run(part2, input-user) returned in 97ms => 6376648986651
 ```
 
 # Question 10

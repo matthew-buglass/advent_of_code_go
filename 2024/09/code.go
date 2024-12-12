@@ -106,20 +106,50 @@ func optimizeStorage(decompressedArray []int) {
 	}
 }
 
-func optimizeStoragePairs(storagePairs []BlockPair) {
-	frontPointer := 0
-	backPointer := len(storagePairs) - 1
+func printMemory(storagePairs []BlockPair) {
+	fmt.Println(stringReprFromArray(decompressedArray(storagePairs)))
+}
 
-	for frontPointer < backPointer {
-		if decompressedArray[frontPointer] >= 0 {
-			frontPointer++
-		} else if decompressedArray[backPointer] < 0 {
-			backPointer--
-		} else {
-			decompressedArray[frontPointer] = decompressedArray[backPointer]
-			decompressedArray[backPointer] = -1
-		}
+func moveForwardIndexIToJ(storagePairs []BlockPair, i int, j int) {
+	itemToMove := storagePairs[i]
+	for k := i; k > j; k-- {
+		storagePairs[k] = storagePairs[k-1]
 	}
+	storagePairs[j] = itemToMove
+}
+
+func moveStorageBlock(storagePairs []BlockPair, frontPointer int, backPointer int) {
+	frontVal := storagePairs[frontPointer]
+	backVal := storagePairs[backPointer]
+	backTotalSpace := backVal.usedSpace + backVal.emptySpace
+	storagePairs[backPointer].emptySpace = frontVal.emptySpace - backVal.usedSpace
+	storagePairs[frontPointer].emptySpace = 0
+	moveForwardIndexIToJ(storagePairs, backPointer, frontPointer+1)
+	storagePairs[backPointer].emptySpace += backTotalSpace
+	// printMemory(storagePairs)
+}
+
+func optimizeStoragePairs(storagePairs []BlockPair) {
+	// printMemory(storagePairs)
+	// go from back to front
+	backPointer := len(storagePairs) - 1
+	frontPointer := 0
+	for frontPointer < backPointer {
+		for frontPointer < backPointer {
+			// fmt.Println(frontPointer, backPointer, storagePairs[frontPointer].emptySpace, storagePairs[backPointer].usedSpace)
+			if storagePairs[frontPointer].emptySpace >= storagePairs[backPointer].usedSpace {
+				moveStorageBlock(storagePairs, frontPointer, backPointer)
+				break
+			}
+			frontPointer++
+		}
+		if frontPointer == backPointer {
+			backPointer--
+		}
+		frontPointer = 0
+		// fmt.Println(frontPointer, backPointer)
+	}
+
 }
 
 func calcCheckSum1(optimizedArray []int) int {
@@ -171,14 +201,16 @@ func run(part2 bool, input string) any {
 			blockPairs = append(blockPairs, pair)
 		}
 	}
+	sortById(blockPairs)
 
 	// when you're ready to do part 2, remove this "not implemented" block
 	if part2 {
-		return "not implemented"
+		optimizeStoragePairs(blockPairs)
+		decompressed := decompressedArray(blockPairs)
+		return calcCheckSum2(decompressed)
 	}
 
 	// solve part 1 here
-	sortById(blockPairs)
 	decompressed := decompressedArray(blockPairs)
 	optimizeStorage(decompressed)
 
