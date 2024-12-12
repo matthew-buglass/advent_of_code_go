@@ -2,11 +2,13 @@ package main
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 	"golang.org/x/sync/errgroup"
@@ -198,29 +200,59 @@ func blinkStoneMemoizedRecursive2(stoneNumber int, stepsRemaining int, memoMap *
 	return nil
 }
 
-// func blinkStoneRecursive(stoneNumber int, stoneIndex int, currentSplits int, totalSplits int, resultChannel chan []int, wg *sync.WaitGroup) {
-// 	// Returns an array where the first number is the index order of the stones and the subsequent
-// 	// elements are the results of blinking the stone.
-// 	defer wg.Done()
+func getMemoIndex(src int, stepsToDST int) string {
+	return fmt.Sprintf("%d,%d", src, stepsToDST)
+}
 
-// 	resultArray := []int{stoneIndex}
-// 	stoneStringNumber := strconv.Itoa(stoneNumber)
-// 	if stoneNumber == 0 {
-// 		resultArray = append(resultArray, 1)
-// 	} else if len(stoneStringNumber)%2 == 0 {
-// 		halfIdx := len(stoneStringNumber) / 2
-// 		num1, _ := strconv.Atoi(stoneStringNumber[:halfIdx])
-// 		num2, _ := strconv.Atoi(stoneStringNumber[halfIdx:])
-// 		resultArray = append(resultArray, num1, num2)
-// 	} else {
-// 		resultArray = append(resultArray, stoneNumber*2024)
-// 	}
+func blinkStoneMemoizedRecursiveSync(stoneNumber int, stepsRemaining int, memoMap *map[MemoIndex][]int) int {
+	// Returns an array where the first number is the index order of the stones and the subsequent
+	// elements are the results of blinking the stone.
 
-// 	if currentSplits == totalSplits {
-// 		resultChannel <- resultArray
-// 	}
+	// Find the furthest step that we have recorded
+	stepsFound := stepsRemaining
+	memo, ok := (*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsFound}]
+	for !ok && stepsFound > 0 {
+		stepsFound--
+		memo, ok = (*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsFound}]
+	}
 
-// }
+	jumpTo := []int{stoneNumber}
+	if ok {
+		jumpTo = memo
+	}
+
+	// if we found a jump to the end, send it to the channel and return
+	if stepsFound == stepsRemaining {
+		// fmt.Println(len(*memoMap))
+		return len(jumpTo)
+	}
+
+	// Current State:
+	//		jumpTo: all the results that we have stored
+	//		stepsFound: the number of steps it took to get there
+
+	// find the next jump and memoize it
+	stepsFound++
+	nextJumps := []int{}
+	for _, jump := range jumpTo {
+		m, ok := (*memoMap)[MemoIndex{src: jump, stepsToDST: 1}]
+		if ok {
+			nextJumps = append(nextJumps, m...)
+		} else {
+			newJumps := getBlinkResult(jump)
+			(*memoMap)[MemoIndex{src: jump, stepsToDST: 1}] = newJumps
+			nextJumps = append(nextJumps, newJumps...)
+		}
+	}
+	(*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsFound}] = nextJumps
+
+	// for each of the new jumps that we have calculated, find their descendants
+	total := 0
+	for _, j := range nextJumps {
+		total += blinkStoneMemoizedRecursiveSync(j, stepsRemaining-stepsFound, memoMap)
+	}
+	return total
+}
 
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
@@ -232,32 +264,39 @@ func run(part2 bool, input string) any {
 	stoneNumbers := parseInput(input)
 
 	numBlinks := 25
-
 	if part2 {
-		numBlinks = 75
-		blinkMemo := sync.Map{}
+		numBlinks = 50
+		// blinkMemo := sync.Map{}
+		memoMap := make(map[MemoIndex][]int, 0)
 		// var wg sync.WaitGroup
-		countLeafsChannel := make(chan int, 300)
+		// countLeafsChannel := make(chan int, 300)
 
-		eg := new(errgroup.Group)
-		eg.SetLimit(1000) // limit the number of go routines
+		// eg := new(errgroup.Group)
+		// eg.SetLimit(1000) // limit the number of go routines
 
 		// queue sub tasks
+		total := 0
 		for _, stone := range stoneNumbers {
+
+			startTime := time.Now()
 			// wg.Add(1)
-			eg.Go(func() error {
-				return blinkStoneMemoizedRecursive2(stone, numBlinks, &blinkMemo, countLeafsChannel, eg)
-			})
+			// eg.Go(func() error {
+			// 	return blinkStoneMemoizedRecursive2(stone, numBlinks, &blinkMemo, countLeafsChannel, eg)
+			// })
+			numStones := blinkStoneMemoizedRecursiveSync(stone, numBlinks, &memoMap)
+			total += numStones
+			fmt.Printf("Stone %v makes %v in %v\n", stone, numStones, time.Since(startTime))
 		}
+		return total
 
-		go waitAndCloseInt(countLeafsChannel, eg)
+		// go waitAndCloseInt(countLeafsChannel, eg)
 
-		// read results
-		totalLeafs := 0
-		for result := range countLeafsChannel {
-			totalLeafs += result
-		}
-		return totalLeafs
+		// // read results
+		// totalLeafs := 0
+		// for result := range countLeafsChannel {
+		// 	totalLeafs += result
+		// }
+		// return totalLeafs
 	}
 
 	for i := 0; i < numBlinks; i++ {
