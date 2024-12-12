@@ -1,15 +1,22 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 )
 
 func main() {
 	aoc.Harness(run)
+}
+
+func waitAndClose(channel chan GardenRegion, wg *sync.WaitGroup) {
+	defer close(channel)
+	wg.Wait()
 }
 
 // General Functions
@@ -149,6 +156,42 @@ func areAdjacent(plotA *GardenPlot, plotB *GardenPlot) bool {
 	return intAbs(plotA.i-plotB.i)+intAbs(plotA.j-plotB.j) == 1
 }
 
+// Solver functions
+func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *sync.WaitGroup, channel chan GardenRegion) {
+	defer wg.Done()
+	gardenRegions := make([]GardenRegion, 0)
+
+	fmt.Println("finding regions for", plotRune)
+
+	for _, plot := range gardenPlots {
+		numAdded := 0
+		for _, region := range gardenRegions {
+			fmt.Println("added to region for", plotRune)
+			if region.isAdjacent(plot) {
+				region.addPlot(plot)
+				numAdded++
+			}
+		}
+		if numAdded > 1 {
+			fmt.Println("Added plot more than once. This means there are plots we need to join")
+		} else if numAdded == 0 { // need to make a new region
+			fmt.Println("created new region for", plotRune)
+			gardenRegions = append(gardenRegions, GardenRegion{
+				gardenPlots: []*GardenPlot{plot},
+				edgePlots:   []*GardenPlot{plot},
+				gardenRune:  plotRune,
+				perimeter:   4,
+				area:        1,
+			})
+		}
+	}
+
+	fmt.Println("found number regions for", len(gardenRegions), plotRune)
+	for _, region := range gardenRegions {
+		channel <- region
+	}
+}
+
 // on code change, run will be executed 4 times:
 // 1. with: false (part1), and example input
 // 2. with: true (part2), and example input
@@ -157,9 +200,29 @@ func areAdjacent(plotA *GardenPlot, plotB *GardenPlot) bool {
 // the return value of each run is printed to stdout
 func run(part2 bool, input string) any {
 	// when you're ready to do part 2, remove this "not implemented" block
+	plotRuneToLocations := parseInput(input)
+	fmt.Println("parsed input", plotRuneToLocations)
+
 	if part2 {
 		return "not implemented"
 	}
 	// solve part 1 here
+
+	// Async vars
+	var wg sync.WaitGroup
+	regionChannel := make(chan GardenRegion)
+
+	for plotRune, gardenPlots := range plotRuneToLocations {
+		wg.Add(1)
+		go buildRegionsFromLikePlots(plotRune, gardenPlots, &wg, regionChannel)
+	}
+
+	// wait for the results
+	go waitAndClose(regionChannel, &wg)
+
+	for region := range regionChannel {
+		fmt.Println(region.gardenRune, region.perimeter, region.area)
+	}
+
 	return 42
 }
