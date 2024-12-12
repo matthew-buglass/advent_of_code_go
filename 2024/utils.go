@@ -35,6 +35,13 @@ func powInt(x, y int) int {
 	return int(math.Pow(float64(x), float64(y)))
 }
 
+func intAbs(num int) int {
+	if num < 0 {
+		return -1 * num
+	}
+	return num
+}
+
 func waitAndClose(channel chan any, wg *sync.WaitGroup) {
 	defer close(channel)
 	wg.Wait()

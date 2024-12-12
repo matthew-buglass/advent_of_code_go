@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/jpillora/puzzler/harness/aoc"
@@ -12,6 +13,13 @@ func main() {
 }
 
 // General Functions
+func intAbs(num int) int {
+	if num < 0 {
+		return -1 * num
+	}
+	return num
+}
+
 func getLeadingIndices(matchPairs [][]int) []int {
 	if matchPairs == nil {
 		return nil
@@ -68,6 +76,18 @@ func (p *GardenPlot) calculateArea() {
 	p.area = 1
 }
 
+func (p *GardenPlot) isEdge() bool {
+	return p.perimeter != 0
+}
+
+func markAdjacent(src *GardenPlot, dst *GardenPlot) {
+	src.adjacentPlots = append(src.adjacentPlots, dst)
+	dst.adjacentPlots = append(dst.adjacentPlots, src)
+
+	src.calculatePerimeter()
+	dst.calculatePerimeter()
+}
+
 func (r *GardenRegion) calculatePerimeter() {
 	r.perimeter = 0
 	for _, plot := range r.gardenPlots {
@@ -77,6 +97,47 @@ func (r *GardenRegion) calculatePerimeter() {
 
 func (r *GardenRegion) calculateArea() {
 	r.area = len(r.gardenPlots)
+}
+
+func (r *GardenRegion) getAdjacentPlots(plot *GardenPlot) []*GardenPlot {
+	adjPlots := make([]*GardenPlot, 0, 4)
+	for _, edgePlot := range r.edgePlots {
+		if areAdjacent(edgePlot, plot) {
+			adjPlots = append(adjPlots, plot)
+		}
+	}
+	return adjPlots
+}
+
+func (r *GardenRegion) addPlot(plot *GardenPlot) {
+	for _, edgePlot := range r.getAdjacentPlots(plot) {
+		if areAdjacent(edgePlot, plot) {
+			markAdjacent(edgePlot, plot)
+			if !edgePlot.isEdge() {
+				r.removeEdge(edgePlot)
+			}
+		}
+	}
+}
+
+func (r *GardenRegion) removeEdge(plot *GardenPlot) {
+	edgeIdx := slices.Index(r.edgePlots, plot)
+	r.edgePlots = append(r.edgePlots[:edgeIdx], r.edgePlots[edgeIdx+1:]...)
+}
+
+func (r *GardenRegion) isAdjacent(plot *GardenPlot) bool {
+	isAdj := false
+	for _, edgePlot := range r.edgePlots {
+		isAdj = isAdj || areAdjacent(edgePlot, plot)
+		if isAdj {
+			return isAdj
+		}
+	}
+	return isAdj
+}
+
+func areAdjacent(plotA *GardenPlot, plotB *GardenPlot) bool {
+	return intAbs(plotA.i-plotB.i)+intAbs(plotA.j-plotB.j) == 1
 }
 
 // on code change, run will be executed 4 times:
