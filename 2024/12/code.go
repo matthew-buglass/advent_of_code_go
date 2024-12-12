@@ -48,11 +48,14 @@ type GardenPlot struct {
 	adjacentPlots []*GardenPlot
 	perimeter     int
 	area          int
+	i             int
+	j             int
 }
 
 type GardenRegion struct {
 	gardenRune  string
 	gardenPlots []*GardenPlot
+	edgePlots   []*GardenPlot
 	perimeter   int
 	area        int
 }
