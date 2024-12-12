@@ -84,9 +84,8 @@ run(part2, input-user) returned in 4ms => 1344
 
 # Question 11
 ```
-run(part1, input-example) returned in 190ms => 55312
-run(part1, input-user) returned in 923ms => 183248
-
-run(part1, input-example) returned in 176ms => 55312
-run(part1, input-user) returned in 504ms => 183248
+run(part1, input-example) returned in 187ms => 55312
+run(part1, input-user) returned in 406ms => 183248
+run(part2, input-example) returned in 4ms => 65601038650482
+run(part2, input-user) returned in 28ms => 218811774248729
 ```

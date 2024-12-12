@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/jpillora/puzzler/harness/aoc"
 	"golang.org/x/sync/errgroup"
@@ -246,12 +245,43 @@ func blinkStoneMemoizedRecursiveSync(stoneNumber int, stepsRemaining int, memoMa
 	}
 	(*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsFound}] = nextJumps
 
+	// count the number of next jumps
+	jumpsToCount := make(map[int]int)
+	for _, j := range nextJumps {
+		jumpsToCount[j] = jumpsToCount[j] + 1
+	}
+
 	// for each of the new jumps that we have calculated, find their descendants
 	total := 0
-	for _, j := range nextJumps {
-		total += blinkStoneMemoizedRecursiveSync(j, stepsRemaining-stepsFound, memoMap)
+	for j, count := range jumpsToCount {
+		total += (count * blinkStoneMemoizedRecursiveSync(j, stepsRemaining-stepsFound, memoMap))
 	}
 	return total
+}
+
+func blinkStoneMemoizedRecursiveSync2(stoneNumber int, stepsRemaining int, memoMap *map[MemoIndex]int) int {
+	// I got this from the reddit, but why is it so much faster? Is it because of the array allocation?
+
+	// Find the furthest step that we have recorded
+	memo, ok := (*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsRemaining}]
+	value := 0
+	if stepsRemaining == 0 {
+		return 1
+	} else if ok {
+		return memo
+	} else if stoneNumber == 0 {
+		value = blinkStoneMemoizedRecursiveSync2(1, stepsRemaining-1, memoMap)
+	} else if isEvenDigits(stoneNumber) {
+		stoneStringNumber := strconv.Itoa(stoneNumber)
+		halfIdx := len(stoneStringNumber) / 2
+		num1, _ := strconv.Atoi(stoneStringNumber[:halfIdx])
+		num2, _ := strconv.Atoi(stoneStringNumber[halfIdx:])
+		value = blinkStoneMemoizedRecursiveSync2(num1, stepsRemaining-1, memoMap) + blinkStoneMemoizedRecursiveSync2(num2, stepsRemaining-1, memoMap)
+	} else {
+		value = blinkStoneMemoizedRecursiveSync2(stoneNumber*2024, stepsRemaining-1, memoMap)
+	}
+	(*memoMap)[MemoIndex{src: stoneNumber, stepsToDST: stepsRemaining}] = value
+	return value
 }
 
 // on code change, run will be executed 4 times:
@@ -265,9 +295,10 @@ func run(part2 bool, input string) any {
 
 	numBlinks := 25
 	if part2 {
-		numBlinks = 50
+		numBlinks = 75
 		// blinkMemo := sync.Map{}
-		memoMap := make(map[MemoIndex][]int, 0)
+		// memoMap := make(map[MemoIndex][]int, 0)
+		memoMap := make(map[MemoIndex]int, 0)
 		// var wg sync.WaitGroup
 		// countLeafsChannel := make(chan int, 300)
 
@@ -278,14 +309,15 @@ func run(part2 bool, input string) any {
 		total := 0
 		for _, stone := range stoneNumbers {
 
-			startTime := time.Now()
+			// startTime := time.Now()
 			// wg.Add(1)
 			// eg.Go(func() error {
 			// 	return blinkStoneMemoizedRecursive2(stone, numBlinks, &blinkMemo, countLeafsChannel, eg)
 			// })
-			numStones := blinkStoneMemoizedRecursiveSync(stone, numBlinks, &memoMap)
+			// numStones := blinkStoneMemoizedRecursiveSync(stone, numBlinks, &memoMap)
+			numStones := blinkStoneMemoizedRecursiveSync2(stone, numBlinks, &memoMap)
 			total += numStones
-			fmt.Printf("Stone %v makes %v in %v\n", stone, numStones, time.Since(startTime))
+			// fmt.Printf("Stone %v makes %v in %v\n", stone, numStones, time.Since(startTime))
 		}
 		return total
 
