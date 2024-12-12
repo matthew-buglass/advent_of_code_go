@@ -31,7 +31,7 @@ func getLeadingIndices(matchPairs [][]int) []int {
 	return firstIndices
 }
 
-func parseInput(input string) (plotRuneToLocations map[string][][]int) {
+func parseInput(input string) (plotRuneToLocations map[string][]*GardenPlot) {
 	rows := strings.Split(input, "\n")
 	uniqueCharRe := regexp.MustCompile(`.`)
 	spaceBounds := []int{len(rows) - 1, len(rows[0]) - 1}
@@ -40,11 +40,17 @@ func parseInput(input string) (plotRuneToLocations map[string][][]int) {
 	plotRunes := uniqueCharRe.FindAllString(strippedInput, -1)
 	plotRunesIdx := getLeadingIndices(uniqueCharRe.FindAllStringSubmatchIndex(strippedInput, -1))
 
-	plotRuneToLocations = make(map[string][][]int, 0)
-	for i, rune := range plotRunes {
+	plotRuneToLocations = make(map[string][]*GardenPlot, 0)
+	for i, plotRune := range plotRunes {
 		offset := plotRunesIdx[i]
-		antennaLocation := []int{offset / (spaceBounds[1] + 1), offset % (spaceBounds[1] + 1)}
-		plotRuneToLocations[rune] = append(plotRuneToLocations[rune], antennaLocation)
+		plot := GardenPlot{
+			gardenRune: plotRune,
+			perimeter:  4,
+			area:       1,
+			i:          offset / (spaceBounds[1] + 1),
+			j:          offset % (spaceBounds[1] + 1),
+		}
+		plotRuneToLocations[plotRune] = append(plotRuneToLocations[plotRune], &plot)
 	}
 
 	return plotRuneToLocations
@@ -117,6 +123,9 @@ func (r *GardenRegion) addPlot(plot *GardenPlot) {
 				r.removeEdge(edgePlot)
 			}
 		}
+	}
+	if plot.isEdge() {
+		r.edgePlots = append(r.edgePlots, plot)
 	}
 }
 
