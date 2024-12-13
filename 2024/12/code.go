@@ -137,14 +137,13 @@ func (r *GardenRegion) getAdjacentPlots(plot *GardenPlot) []*GardenPlot {
 	adjPlots := make([]*GardenPlot, 0, 4)
 	for _, edgePlot := range r.edgePlots {
 		if areAdjacent(edgePlot, plot) {
-			adjPlots = append(adjPlots, plot)
+			adjPlots = append(adjPlots, edgePlot)
 		}
 	}
 	return adjPlots
 }
 
 func (r *GardenRegion) addPlot(plot *GardenPlot) {
-	fmt.Println(r.getAdjacentPlots(plot))
 	for _, edgePlot := range r.getAdjacentPlots(plot) {
 		fmt.Println("adjacent")
 		markAdjacent(edgePlot, plot)
@@ -188,9 +187,7 @@ func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *s
 		numAdded := 0
 		for _, region := range gardenRegions {
 			if region.isAdjacent(plot) {
-				fmt.Println("pre added to region for", plotRune, len(region.gardenPlots), len(region.edgePlots))
 				region.addPlot(plot)
-				fmt.Println("post added to region for", plotRune, len(region.gardenPlots), len(region.edgePlots))
 				numAdded++
 			}
 		}
