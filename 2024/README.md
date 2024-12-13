@@ -77,7 +77,7 @@ run(part2, input-example) returned in 25µs => 2858
 run(part2, input-user) returned in 97ms => 6376648986651
 ```
 
-# Question 10
+## Question 10
 ```
 run(part1, input-example) returned in 675µs => 36
 run(part1, input-user) returned in 6ms => 667
@@ -85,10 +85,23 @@ run(part2, input-example) returned in 175µs => 81
 run(part2, input-user) returned in 4ms => 1344
 ```
 
-# Question 11
+## Question 11
 ```
 run(part1, input-example) returned in 187ms => 55312
 run(part1, input-user) returned in 406ms => 183248
 run(part2, input-example) returned in 4ms => 65601038650482
 run(part2, input-user) returned in 28ms => 218811774248729
+```
+
+## Question 12
+```
+:(
+```
+
+## Question 13
+```
+run(part1, input-example) returned in 642µs => 480
+run(part1, input-user) returned in 1ms => 26810
+run(part2, input-example) returned in 92µs => 875318608908
+run(part2, input-user) returned in 1ms => 108713182988244
 ```

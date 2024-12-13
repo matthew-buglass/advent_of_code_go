@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -125,19 +126,15 @@ func solveBiVariateEquations(clawGame ClawGame) []float64 {
 	return x.RawVector().Data
 }
 
-func isIntSolution(coordinates []float64) ([]int, error) {
-	result := make([]int, 0, len(coordinates))
-	intThreshold := 0.0000000000001
+func isIntSolution(coordinates []float64, isTargetFunc func(int, int) bool) ([]int, error) {
+	aClicks := int(math.Round(coordinates[0]))
+	bClicks := int(math.Round(coordinates[1]))
 
-	for _, coordinate := range coordinates {
-		diff := coordinate - float64(int(coordinate))
-		if math.Abs(diff) < intThreshold {
-			result = append(result, int(coordinate))
-		} else {
-			return nil, errors.New("Not close enough to an integer")
-		}
+	if isTargetFunc(aClicks, bClicks) {
+		return []int{aClicks, bClicks}, nil
+	} else {
+		return nil, errors.New(fmt.Sprintf("Not close enough to an integer: %v", coordinates))
 	}
-	return result, nil
 }
 
 func findMinValue(clawGame ClawGame, channel chan int, wg *sync.WaitGroup) {
@@ -148,7 +145,12 @@ func findMinValue(clawGame ClawGame, channel chan int, wg *sync.WaitGroup) {
 		return
 	}
 
-	intArr, err := isIntSolution(intersection)
+	targetFunc := func(aClicks int, bClicks int) bool {
+		return clawGame.prize.x == aClicks*clawGame.buttonA.x+bClicks*clawGame.buttonB.x &&
+			clawGame.prize.y == aClicks*clawGame.buttonA.y+bClicks*clawGame.buttonB.y
+	}
+
+	intArr, err := isIntSolution(intersection, targetFunc)
 	if err == nil {
 		result := clawGame.buttonA.cost*intArr[0] + clawGame.buttonB.cost*intArr[1]
 		channel <- result
@@ -162,7 +164,12 @@ func findMinValueSync(clawGame ClawGame) int {
 		return result
 	}
 
-	intArr, err := isIntSolution(intersection)
+	targetFunc := func(aClicks int, bClicks int) bool {
+		return clawGame.prize.x == aClicks*clawGame.buttonA.x+bClicks*clawGame.buttonB.x &&
+			clawGame.prize.y == aClicks*clawGame.buttonA.y+bClicks*clawGame.buttonB.y
+	}
+
+	intArr, err := isIntSolution(intersection, targetFunc)
 	if err == nil {
 		result = clawGame.buttonA.cost*intArr[0] + clawGame.buttonB.cost*intArr[1]
 	}
@@ -180,7 +187,22 @@ func run(part2 bool, input string) any {
 	clawGames := parseInput(input)
 
 	if part2 {
-		return "not implemented"
+		var wg sync.WaitGroup
+		resultChannel := make(chan int)
+		for _, game := range clawGames {
+			wg.Add(1)
+			game.prize.x += 10000000000000
+			game.prize.y += 10000000000000
+			go findMinValue(game, resultChannel, &wg)
+		}
+
+		go waitAndClose(resultChannel, &wg)
+
+		total := 0
+		for result := range resultChannel {
+			total += result
+		}
+		return total
 	}
 	// solve part 1 here
 	// This is a system of 2 bi-variate linear equations, to they will have 1 intersection points
@@ -193,6 +215,7 @@ func run(part2 bool, input string) any {
 		}
 		return total
 	} else {
+		// 26810 is too low
 		var wg sync.WaitGroup
 		resultChannel := make(chan int)
 		for _, game := range clawGames {
