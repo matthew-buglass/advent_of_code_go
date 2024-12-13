@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"cmp"
 	"os"
 	"regexp"
 	"slices"
@@ -113,11 +113,15 @@ func (p *GardenPlot) isEdge() bool {
 }
 
 func markAdjacent(src *GardenPlot, dst *GardenPlot) {
-	(*src).adjacentPlots = append((*src).adjacentPlots, dst)
-	(*dst).adjacentPlots = append((*dst).adjacentPlots, src)
+	if slices.Index(src.adjacentPlots, dst) == -1 {
+		(*src).adjacentPlots = append((*src).adjacentPlots, dst)
+		src.calculatePerimeter()
+	}
+	if slices.Index(dst.adjacentPlots, src) == -1 {
+		(*dst).adjacentPlots = append((*dst).adjacentPlots, src)
 
-	src.calculatePerimeter()
-	dst.calculatePerimeter()
+		dst.calculatePerimeter()
+	}
 }
 
 func (r *GardenRegion) calculatePerimeter() {
@@ -168,13 +172,16 @@ func (r *GardenRegion) isAdjacent(plot *GardenPlot) bool {
 	return false
 }
 
-func (r *GardenRegion) mergeWithRegion(regionToMerge *GardenRegion) {
-	// sortPlotsByClosestTo := func(a *GardenPlot, b *GardenPlot) int {
-	// 	distA :=
-	// }
+func (r *GardenRegion) mergeWithRegion(regionToMerge *GardenRegion, startingPoint []int) {
+	sortPlotsByClosestTo := func(a *GardenPlot, b *GardenPlot) int {
+		distA := manhattanDist([]int{a.i, a.j}, startingPoint)
+		distB := manhattanDist([]int{b.i, b.j}, startingPoint)
+		return cmp.Compare(distA, distB)
+	}
 
-	// sortedPlots := slices.SortFunc(regionToMerge.gardenPlots)
-	for _, plot := range regionToMerge.gardenPlots {
+	plotToMerge := regionToMerge.gardenPlots
+	slices.SortFunc(plotToMerge, sortPlotsByClosestTo)
+	for _, plot := range plotToMerge {
 		r.addPlot(plot)
 	}
 }
@@ -201,7 +208,7 @@ func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *s
 				numAdded++
 				if numAdded > 1 {
 					regionsToDrop = append(regionsToDrop, region)
-					ogRegion.mergeWithRegion(region)
+					ogRegion.mergeWithRegion(region, []int{plot.i, plot.j})
 				} else {
 					region.addPlot(plot)
 					ogRegion = region
@@ -267,7 +274,7 @@ func run(part2 bool, input string) any {
 	for region := range regionChannel {
 		price := region.area * region.perimeter
 		totalPrice += price
-		fmt.Printf("A region of %s type plants (%d) with price %d * %d = %d\n", region.gardenRune, len(region.gardenPlots), region.area, region.perimeter, price)
+		// fmt.Printf("A region of %s type plants (%d) with price %d * %d = %d\n", region.gardenRune, len(region.gardenPlots), region.area, region.perimeter, price)
 	}
 
 	return totalPrice
