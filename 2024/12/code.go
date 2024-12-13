@@ -102,7 +102,6 @@ type GardenRegion struct {
 
 func (p *GardenPlot) calculatePerimeter() {
 	p.perimeter = 4 - len(p.adjacentPlots)
-	fmt.Println(p.perimeter)
 }
 
 func (p *GardenPlot) calculateArea() {
@@ -130,7 +129,6 @@ func (r *GardenRegion) calculatePerimeter() {
 
 func (r *GardenRegion) calculateArea() {
 	r.area = len(r.gardenPlots)
-	fmt.Println("num plots", r.area)
 }
 
 func (r *GardenRegion) getAdjacentPlots(plot *GardenPlot) []*GardenPlot {
@@ -145,17 +143,15 @@ func (r *GardenRegion) getAdjacentPlots(plot *GardenPlot) []*GardenPlot {
 
 func (r *GardenRegion) addPlot(plot *GardenPlot) {
 	for _, edgePlot := range r.getAdjacentPlots(plot) {
-		fmt.Println("adjacent")
 		markAdjacent(edgePlot, plot)
-		// if !edgePlot.isEdge() {
-		// 	r.removeEdge(edgePlot)
-		// }
+		if !edgePlot.isEdge() {
+			r.removeEdge(edgePlot)
+		}
 	}
 	r.gardenPlots = append(r.gardenPlots, plot)
 	if plot.isEdge() {
 		r.edgePlots = append(r.edgePlots, plot)
 	}
-	r.calculateArea()
 }
 
 func (r *GardenRegion) removeEdge(plot *GardenPlot) {
@@ -179,9 +175,7 @@ func areAdjacent(plotA *GardenPlot, plotB *GardenPlot) bool {
 // Solver functions
 func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *sync.WaitGroup, channel chan GardenRegion) {
 	defer wg.Done()
-	gardenRegions := make([]GardenRegion, 0)
-
-	fmt.Println("finding regions for", plotRune)
+	gardenRegions := make([]*GardenRegion, 0)
 
 	for _, plot := range gardenPlots {
 		numAdded := 0
@@ -194,22 +188,21 @@ func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *s
 		if numAdded > 1 {
 			fmt.Println("Added plot more than once. This means there are plots we need to join")
 		} else if numAdded == 0 { // need to make a new region
-			fmt.Println("created new region for", plotRune)
-			gardenRegions = append(gardenRegions, GardenRegion{
+			newRegion := GardenRegion{
 				gardenPlots: []*GardenPlot{plot},
 				edgePlots:   []*GardenPlot{plot},
 				gardenRune:  plotRune,
 				perimeter:   4,
 				area:        1,
-			})
+			}
+			gardenRegions = append(gardenRegions, &newRegion)
 		}
 	}
 
-	fmt.Println("found number of regions for", len(gardenRegions), plotRune)
 	for _, region := range gardenRegions {
 		region.calculateArea()
 		region.calculatePerimeter()
-		channel <- region
+		channel <- (*region)
 	}
 }
 
@@ -232,20 +225,22 @@ func run(part2 bool, input string) any {
 	var wg sync.WaitGroup
 	regionChannel := make(chan GardenRegion)
 
-	wg.Add(1)
-	go buildRegionsFromLikePlots("O", plotRuneToLocations["O"], &wg, regionChannel)
+	// wg.Add(1)
+	// go buildRegionsFromLikePlots("X", plotRuneToLocations["X"], &wg, regionChannel)
 
-	// for plotRune, gardenPlots := range plotRuneToLocations {
-	// 	wg.Add(1)
-	// 	buildRegionsFromLikePlots(plotRune, gardenPlots, &wg, regionChannel)
-	// }
+	for plotRune, gardenPlots := range plotRuneToLocations {
+		wg.Add(1)
+		go buildRegionsFromLikePlots(plotRune, gardenPlots, &wg, regionChannel)
+	}
 
 	// wait for the results
 	go waitAndClose(regionChannel, &wg)
-
+	totalPrice := 0
 	for region := range regionChannel {
-		fmt.Println(region)
+		price := region.area * region.perimeter
+		totalPrice += price
+		fmt.Printf("A region of %s type plants with price %d * %d = %d\n", region.gardenRune, region.area, region.perimeter, price)
 	}
 
-	return 42
+	return totalPrice
 }
