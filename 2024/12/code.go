@@ -168,8 +168,23 @@ func (r *GardenRegion) isAdjacent(plot *GardenPlot) bool {
 	return false
 }
 
+func (r *GardenRegion) mergeWithRegion(regionToMerge *GardenRegion) {
+	// sortPlotsByClosestTo := func(a *GardenPlot, b *GardenPlot) int {
+	// 	distA :=
+	// }
+
+	// sortedPlots := slices.SortFunc(regionToMerge.gardenPlots)
+	for _, plot := range regionToMerge.gardenPlots {
+		r.addPlot(plot)
+	}
+}
+
+func manhattanDist(pointA []int, pointB []int) int {
+	return intAbs(pointA[0]-pointB[0]) + intAbs(pointA[1]-pointB[1])
+}
+
 func areAdjacent(plotA *GardenPlot, plotB *GardenPlot) bool {
-	return intAbs(plotA.i-plotB.i)+intAbs(plotA.j-plotB.j) == 1
+	return manhattanDist([]int{plotA.i, plotA.j}, []int{plotB.i, plotB.j}) == 1
 }
 
 // Solver functions
@@ -179,15 +194,28 @@ func buildRegionsFromLikePlots(plotRune string, gardenPlots []*GardenPlot, wg *s
 
 	for _, plot := range gardenPlots {
 		numAdded := 0
+		var ogRegion *GardenRegion
+		regionsToDrop := make([]*GardenRegion, 0)
 		for _, region := range gardenRegions {
 			if region.isAdjacent(plot) {
-				region.addPlot(plot)
 				numAdded++
+				if numAdded > 1 {
+					regionsToDrop = append(regionsToDrop, region)
+					ogRegion.mergeWithRegion(region)
+				} else {
+					region.addPlot(plot)
+					ogRegion = region
+				}
+
 			}
 		}
-		if numAdded > 1 {
-			fmt.Println("Added plot more than once. This means there are plots we need to join")
-		} else if numAdded == 0 { // need to make a new region
+
+		for _, regionToDrop := range regionsToDrop {
+			regionIdx := slices.Index(gardenRegions, regionToDrop)
+			gardenRegions = append(gardenRegions[:regionIdx], gardenRegions[regionIdx+1:]...)
+		}
+
+		if numAdded == 0 { // need to make a new region
 			newRegion := GardenRegion{
 				gardenPlots: []*GardenPlot{plot},
 				edgePlots:   []*GardenPlot{plot},
@@ -239,7 +267,7 @@ func run(part2 bool, input string) any {
 	for region := range regionChannel {
 		price := region.area * region.perimeter
 		totalPrice += price
-		fmt.Printf("A region of %s type plants with price %d * %d = %d\n", region.gardenRune, region.area, region.perimeter, price)
+		fmt.Printf("A region of %s type plants (%d) with price %d * %d = %d\n", region.gardenRune, len(region.gardenPlots), region.area, region.perimeter, price)
 	}
 
 	return totalPrice
